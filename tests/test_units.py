@@ -255,5 +255,37 @@ class Events(unittest.TestCase):
                 app.decode_images(bad)
 
 
+class Ports(unittest.TestCase):
+    def test_answers(self):
+        import socket
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            s.listen()
+            port = s.getsockname()[1]
+            self.assertTrue(app.answers(port))  # another program on the port: the app moves on
+        servers, port = app.bind(0)  # a port nobody listens on any more
+        for srv in servers:
+            srv.server_close()
+        if sys.platform != "win32":  # (Windows takes 2 s to refuse a connection: the app doesn't ask there)
+            self.assertFalse(app.answers(port))
+
+    def test_quiet_when_the_page_goes_away(self):
+        import io
+        from contextlib import redirect_stderr
+        servers, _ = app.bind(0)
+        try:
+            for exc, quiet in ((BrokenPipeError(), True), (ConnectionResetError(), True), (ValueError("x"), False)):
+                err = io.StringIO()
+                with redirect_stderr(err):
+                    try:
+                        raise exc
+                    except Exception:
+                        servers[0].handle_error(None, ("127.0.0.1", 1))
+                self.assertEqual(err.getvalue() == "", quiet, err.getvalue()[:200])
+        finally:
+            for srv in servers:
+                srv.server_close()
+
+
 if __name__ == "__main__":
     unittest.main()

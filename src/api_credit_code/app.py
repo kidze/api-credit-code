@@ -655,8 +655,17 @@ def end_run(run):
 # ---------------------------------------------------------------- the web app
 
 class Server(ThreadingHTTPServer):
-    allow_reuse_address = False  # on Windows it would let a second copy of the app bind the same port
+    # macOS/Linux: lets the app take its port straight back after it quits (the last run's connections linger on it
+    # for up to a minute, and without this it would move to the next port). On a Mac it could also share a port with
+    # a program listening on all addresses, so main() first checks that nothing answers there. Not on Windows, where
+    # it would let a second copy of the app bind the same port.
+    allow_reuse_address = not cc.WINDOWS
     daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], ConnectionError):
+            return  # the page went away before its answer was sent (a reload, a closed tab): nothing went wrong
+        super().handle_error(request, client_address)
 
 
 class Server6(Server):
@@ -978,6 +987,17 @@ def running_copy(port):
         return False
 
 
+def answers(port):
+    """True when some program accepts connections on this port of this computer."""
+    for host in ("127.0.0.1", "::1"):
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                return True
+        except OSError:
+            pass
+    return False
+
+
 def bind(port):
     """Listen on this computer only: 127.0.0.1, and ::1 too where the computer has IPv6."""
     servers = [Server(("127.0.0.1", port), Handler)]
@@ -1108,6 +1128,8 @@ def main():
             if not a.no_browser:
                 webbrowser.open(f"http://localhost:{port}/")
             return
+        if not cc.WINDOWS and answers(port):  # another program is on it (bind alone could share it there: see Server)
+            continue
         try:
             servers, port = bind(port)
             break
