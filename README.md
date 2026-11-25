@@ -4,7 +4,7 @@
 
 # API Credit Code
 
-**Spend your Claude plan's monthly API credits with your own Claude Code, from a browser tab.**
+**Spend your Claude plan's free monthly API credits with your own Claude Code, from a browser tab.**
 
 [Install](#install) · [Get started](#get-started) · [How it works](#how-it-works) · [Privacy](#privacy-and-safety) · [FAQ](#faq)
 
@@ -17,7 +17,7 @@
 
 ## Why
 
-Claude **Max**, **Ultra** and **Team** plans come with [monthly API credits](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers). They don't pay for Claude Code in your terminal, IDE or the desktop app, and they expire at the end of each billing cycle. They do pay for `claude -p` when you run it yourself with an API key.
+Claude **Max**, **Ultra** and **Team** plans come with **free** [monthly API credits](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers). They don't pay for Claude Code in your terminal, IDE or the desktop app, and they expire at the end of each billing cycle. They do pay for `claude -p` when you run it yourself with an API key.
 
 API Credit Code gives that a proper chat window. Every message runs **your own Claude Code** (`claude -p`) in a folder you pick, on your API key, so the credits pay for it.
 
@@ -29,27 +29,35 @@ API Credit Code gives that a proper chat window. Every message runs **your own C
 
 ## Install
 
-You need [Claude Code](https://code.claude.com/docs/en/setup). Then pick one:
+**First, install [Claude Code](https://code.claude.com/docs/en/setup).** Then pick one:
 
-**Windows**: paste into PowerShell
+**Download the app**
+
+- [Windows installer (.exe)](https://github.com/kidze/api-credit-code/releases/latest/download/API-Credit-Code-Setup.exe)
+- [Mac app (.dmg, Apple silicon)](https://github.com/kidze/api-credit-code/releases/latest/download/API-Credit-Code.dmg)
+
+The apps aren't code-signed yet, so Windows and macOS ask you to confirm the first time you open them (see the [FAQ](#faq)).
+
+**Or paste one line into a terminal.** Nothing goes through your browser's downloads, so there's nothing to confirm.
+
+Windows, in PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/kidze/api-credit-code/main/install.ps1 | iex
 ```
 
-**macOS or Linux**: paste into Terminal
+macOS or Linux, in Terminal:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kidze/api-credit-code/main/install.sh | bash
 ```
 
-**Or download the app:** [Windows installer (.exe)](https://github.com/kidze/api-credit-code/releases/latest/download/API-Credit-Code-Setup.exe) · [Mac app (.dmg, Apple silicon)](https://github.com/kidze/api-credit-code/releases/latest/download/API-Credit-Code.dmg)
-
-The one-liners are the smoothest: nothing passes through your browser's downloads, so there's no "unknown app" warning. The downloadable apps aren't code-signed, so they need one extra click the first time (see the [FAQ](#faq)).
-
 ## Get started
 
-1. **Claim your credits** (once): [claude.ai](https://claude.ai) → Settings → Billing.
+1. **Claim your free credits** (once): [claude.ai](https://claude.ai) → Settings → Billing. Once claimed, they show up under **API credits**:
+
+   <img src="docs/claim-credits.png" width="520" alt="claude.ai Settings, Billing: the API credits section, linked to a Console organization, with the monthly credit highlighted">
+
 2. **Make an API key** in the Console organization that gets them: [platform.claude.com/settings/keys](https://platform.claude.com/settings/keys) → Create key → pick the Default workspace.
 3. **Open API Credit Code** and paste the key. That's it.
 
