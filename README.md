@@ -4,7 +4,9 @@
 
 # API Credit Code
 
-**Spend your Claude plan's free monthly API credits with your own Claude Code, from a browser tab.**
+**Did you know Claude Max, Ultra and Team plans come with free monthly API credits?**
+
+No? Neither do most subscribers, so every month they quietly expire, like a gym membership. Spend yours with your own Claude Code, from a browser tab.
 
 [Install](#install) · [Get started](#get-started) · [How it works](#how-it-works) · [Privacy](#privacy-and-safety) · [FAQ](#faq)
 
