@@ -280,6 +280,10 @@ class AppTest(unittest.TestCase):
         bot = self.done(cid)["messages"][-1]
         self.assertEqual(bot["status"], "error")
         self.assertIn("boom", bot["error"])
+        cid = str(uuid.uuid4())
+        self.assertEqual(self.send(cid, "outdated")[0], 200)
+        bot = self.done(cid)["messages"][-1]
+        self.assertIn("claude update", bot["error"])
 
     def test_11_pictures(self):
         cid = str(uuid.uuid4())

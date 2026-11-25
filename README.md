@@ -87,9 +87,9 @@ Follow-ups resume the same session (`--resume <chat>`). In Manual and Accept edi
 
 ## Privacy and safety
 
-- **On your computer only.** The page is served on `localhost`, and the app only answers requests that carry the page's own token.
+- **On your computer only.** The app listens on `localhost` and takes orders only from its own page, which carries a secret that changes every time the app starts.
 - **One folder holds everything:** your key, your chats and a log. That's `%LOCALAPPDATA%\api-credit-code` on Windows, `~/Library/Application Support/api-credit-code` on macOS and `~/.local/share/api-credit-code` on Linux.
-- **No telemetry, no accounts, no servers of its own.** The app contacts Anthropic once, to check a key when you save it. Everything else goes through Claude Code.
+- **No telemetry, no accounts, no servers of its own.** The app itself contacts Anthropic only to check a key when you save it. Everything else goes through Claude Code.
 - **Auto mode acts without asking.** Claude changes files and runs commands in the folder by itself. Pick Manual when that matters.
 - **Look before you run.** As with any code from GitHub, read it or scan it with your antivirus first. It's under 4,000 lines of plain Python, JavaScript and CSS, with no dependencies.
 

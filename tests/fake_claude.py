@@ -104,6 +104,9 @@ def main():
     if "fail" in text:
         sys.stderr.write("boom: something went wrong\n")
         sys.exit(1)
+    if "outdated" in text:  # what an old Claude Code says about a flag it doesn't know
+        sys.stderr.write("error: unknown option '--permission-prompts'\n")
+        sys.exit(1)
 
     if "slow" in text:
         stream("Working on it")

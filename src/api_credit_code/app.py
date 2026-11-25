@@ -589,7 +589,10 @@ def run_chat(run, text, images, model, effort, budget, followup):
         if run.stopped:
             run.push({"t": "stopped"})
         else:
-            run.push({"t": "error", "msg": " | ".join(err_tail[-3:]) or f"claude exited with code {proc.returncode}"})
+            msg = " | ".join(err_tail[-3:]) or f"claude exited with code {proc.returncode}"
+            if "unknown option" in msg:
+                msg += "\n\nYour Claude Code may be too old for this app. Run `claude update`, then try again."
+            run.push({"t": "error", "msg": msg})
     end_run(run)
     if result:
         log(f"chat {sid[:8]}  done in {time.time() - t0:.0f}s, cost ${result['cost']:.2f}")
