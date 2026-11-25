@@ -73,7 +73,11 @@ def save(home, key):
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
     with os.fdopen(fd, "wb") as f:
         f.write((key + "\n").encode("utf-8"))
-    os.replace(tmp, path)
+    try:
+        os.replace(tmp, path)
+    except OSError:
+        tmp.unlink(missing_ok=True)  # don't leave a copy of the key behind
+        raise
 
 
 def delete(home):

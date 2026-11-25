@@ -159,14 +159,16 @@ class AppTest(unittest.TestCase):
         r = json.loads(self.call("/api/key", {"key": "sk-ant-api03-" + "x" * 30})[1])
         self.assertFalse(r["ok"])
         self.assertFalse(r["key"]["set"])
-        for cut in (25, 35):  # cut before and after it looks like a key
-            r = json.loads(self.call("/api/key", {"key": GOOD_KEY[:cut] + " " + GOOD_KEY[cut:]})[1])
+        for cut in ("sk-ant-api03-go od" + "x" * 30,  # cut before it looks like a key
+                    "sk-ant-api03-" + "y" * 25 + "\n" + "good" + "x" * 10):  # after: Anthropic refuses the first part
+            r = json.loads(self.call("/api/key", {"key": cut})[1])
             self.assertFalse(r["ok"])
             self.assertIn("space or line break", r["message"])
+            self.assertFalse(r["key"]["set"])
         r = json.loads(self.call("/api/key", {"key": "sk-ant-api03-nocredit" + "x" * 30})[1])
         self.assertTrue(r["ok"])
         self.assertEqual(r["status"], "nocredit")
-        r = json.loads(self.call("/api/key", {"key": f"  {GOOD_KEY}\n"})[1])
+        r = json.loads(self.call("/api/key", {"key": f"  {GOOD_KEY}\nmy work key\n"})[1])  # a note after it is fine
         self.assertTrue(r["ok"])
         self.assertEqual(r["status"], "ok")
         self.assertEqual(r["key"]["masked"], "sk-ant-api03-...xxxx")

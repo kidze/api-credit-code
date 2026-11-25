@@ -109,7 +109,8 @@ def claude_status():
     While it is missing or too old, look again (at most every few seconds): the user may have just installed or
     updated it, and shouldn't need to restart this app for that."""
     v = STATE["claude_version"]
-    if (not STATE["claude"] or not (v and v >= cc.MIN_VERSION)) and time.time() - STATE["claude_checked"] > 5:
+    stale = not STATE["claude"] or (v is not None and v < cc.MIN_VERSION)  # an unreadable version isn't asked again
+    if stale and time.time() - STATE["claude_checked"] > 10:
         find_claude()
         v = STATE["claude_version"]
     return {"found": bool(STATE["claude"]), "version": ".".join(map(str, v)) if v else None,
@@ -768,6 +769,12 @@ class Handler(BaseHTTPRequestHandler):
         try:
             n = int(self.headers.get("Content-Length") or 0)
             if n > MAX_BODY:
+                left = min(n, 4 * MAX_BODY)  # read it first: closing with it unread resets the connection on Windows
+                while left > 0:
+                    chunk = self.rfile.read(min(left, 1 << 20))
+                    if not chunk:
+                        break
+                    left -= len(chunk)
                 return self._send(413, b"That's too much to send at once. Try fewer or smaller pictures.")
             body = json.loads(self.rfile.read(n)) if n > 0 else {}
         except (ValueError, RecursionError):
@@ -832,19 +839,23 @@ class Handler(BaseHTTPRequestHandler):
     def _save_key(self, body):
         raw = str(body.get("key") or "")
         found = keys.KEY_RE.search(raw)
-        if not found or keys.CUT_RE.match(raw, found.end()):
+        if not found:
             return self._json(200, {"ok": False, "status": "bad", "key": key_status(), "message": (
                 "That isn't an API key. Keys start with sk-ant-." if "sk-ant-" not in raw else
                 "That isn't the whole key: it has a space or line break in it, or part of it is missing. "
                 "Copy it again from the Console, all in one piece.")})
         key = found.group(0)
         status, message = keys.check(key)
+        if status == "bad" and keys.CUT_RE.match(raw, found.end()):  # (text after a whole key is fine)
+            message = ("Anthropic didn't accept this key, and it looks cut in two by a space or line break. "
+                       "Copy it again from the Console, all in one piece.")
         if status != "bad":
             try:
                 keys.save(HOME, key)
             except OSError as e:
                 return self._json(200, {"ok": False, "status": "unknown", "key": key_status(),
-                                        "message": f"Couldn't save the key: {e}"})
+                                        "message": f"Couldn't save the key in {keys.key_file(HOME)} "
+                                                   f"({e.strerror or e})."})
             log(f"saved API key {keys.mask(key)} ({status})")
         return self._json(200, {"ok": status != "bad", "status": status, "message": message, "key": key_status()})
 
@@ -889,7 +900,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, b"Pick a folder from the list. To add one, open it once with `claude` "
                                            b"in a terminal and say yes when it asks whether you trust it.")
             if not os.path.isdir(folder):
-                return self._send(400, f"This chat's folder is gone: {folder}. Start a new chat.".encode("utf-8"))
+                gone = f"This chat's folder is gone: {folder}." if folder else "This chat has no folder."
+                return self._send(400, f"{gone} Start a new chat.".encode("utf-8"))
             if not chat:
                 chat = CHATS[sid] = {"id": sid, "title": make_title(text or "Picture"), "folder": folder,
                                      "created": now_ms(), "updated": now_ms(), "cost": 0.0, "messages": []}
@@ -1006,9 +1018,10 @@ def quit_when_closed():
 
 
 def find_claude():
-    STATE["claude_checked"] = time.time()
-    STATE["claude"] = cc.find()
-    STATE["claude_version"] = cc.version(STATE["claude"]) if STATE["claude"] else None
+    STATE["claude_checked"] = time.time()  # first, so a page asking at the same moment doesn't look as well
+    found = cc.find()
+    ver = cc.version(found) if found else None
+    STATE["claude"], STATE["claude_version"] = found, ver  # together, so nobody sees one without the other
     if not STATE["claude"]:
         log("Claude Code not found")
     else:

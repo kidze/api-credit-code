@@ -1175,6 +1175,7 @@
       status = await apiJson("/api/status");
     } catch (e) {
       el.keyText.textContent = e.message === OFFLINE ? "App not running" : "Error";
+      el.keyPill.title = e.message; // on a phone the button is only a dot
       el.keyPill.className = "keypill bad";
       return;
     }
