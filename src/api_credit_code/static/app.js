@@ -99,8 +99,10 @@
     }
   });
 
-  // marked strikes through text between single tildes, so "~$5 (~$6)" would lose "$5 (~". Only ~~double~~ should.
+  // A line break in an answer stays a line break, as Claude wrote it ("one per line" lists, file names...).
+  // And marked strikes through text between single tildes, so "~$5 (~$6)" would lose "$5 (~". Only ~~double~~ should.
   marked.use({
+    breaks: true,
     tokenizer: {
       del(src) {
         const m = /^~~(?=\S)([\s\S]*?\S)~~/.exec(src);
@@ -419,7 +421,7 @@
     el.keyProblem.textContent = k.problem || "";
     el.keyProblem.className = "key-msg " + (k.set ? "warn" : "bad");
     el.keyProblem.hidden = !k.problem;
-    el.keyCurrent.hidden = !k.set && !k.problem; // no file yet: nothing to show
+    el.keyCurrent.hidden = false; // where key.txt is, even before there's one: people may put the key there themselves
     el.keyCurrentText.hidden = !k.set;
     el.keyCurrentText.textContent = k.set ? `Using ${k.masked}.` : "";
     el.keyFile.textContent = k.file;
@@ -1113,6 +1115,8 @@
     el.send.disabled = true;
     el.sendNote.textContent = pending.length > 1 ? "Sending the pictures…" : "Sending the picture…";
     el.sendNote.hidden = !withPictures;
+    // The app may wait a few seconds for Claude Code to close after the last answer: show that something is happening
+    const slow = setTimeout(() => { el.sendNote.textContent = "Sending…"; el.sendNote.hidden = false; }, 1200);
     try {
       const images = [];
       if (withPictures) for (const p of pending) images.push({ type: p.type, w: p.w, h: p.h, data: await base64(p.blob) });
@@ -1125,6 +1129,7 @@
       loadStatus(); // key.txt may have changed since the page last looked: show the key screen if there's no key now
       return;
     } finally {
+      clearTimeout(slow);
       sending = false;
       el.sendNote.hidden = true;
       syncComposer();

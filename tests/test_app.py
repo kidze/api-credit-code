@@ -299,6 +299,17 @@ class AppTest(unittest.TestCase):
         self.assertEqual(self.send(cid, "plain")[0], 200)
         self.assertIn("Error: plain trouble", self.done(cid)["messages"][-1]["error"])
 
+    def test_10a_quick_followup_waits_for_claude_code_to_close(self):
+        cid = str(uuid.uuid4())
+        self.assertEqual(self.send(cid, "linger")[0], 200)
+        got = self.wait(cid, lambda c: c["chat"]["messages"][-1].get("status") == "ok")
+        self.assertTrue(got["running"])  # the answer is in, but Claude Code hasn't closed yet
+        t0 = time.time()
+        self.assertEqual(self.send(cid, "and then?")[0], 200)  # sent once it has, instead of "still answering"
+        self.assertGreater(time.time() - t0, 0.5)
+        bot = self.done(cid)["messages"][-1]
+        self.assertEqual(bot["status"], "ok")
+
     def test_10b_bad_requests_get_clear_answers(self):
         self.assertEqual(self.send(str(uuid.uuid4()), "   "), (400, b"Type a message first."))
         nested = b"[" * 50000 + b"]" * 50000

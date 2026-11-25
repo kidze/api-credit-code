@@ -837,7 +837,7 @@ class Handler(BaseHTTPRequestHandler):
         if m and m.group(2) == "delete":
             with LOCK:
                 if m.group(1) in RUNS:
-                    return self._send(409, b"this chat is still answering; stop it first")
+                    return self._send(409, b"This chat is still answering. Stop it first.")
                 CHATS.pop(m.group(1), None)
                 (CHATS_DIR / f"{m.group(1)}.json").unlink(missing_ok=True)
                 shutil.rmtree(CHATS_DIR / m.group(1), ignore_errors=True)  # its pictures
@@ -897,8 +897,14 @@ class Handler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             budget = 5.0
         with LOCK:
+            last = RUNS.get(sid)
+        if last and last.result_at and not last.asks:  # its answer is in and Claude Code is closing (that takes a few
+            end = time.time() + 20                     # seconds): wait, so a quick follow-up or "Run this plan" works
+            while not last.done and time.time() < end:
+                time.sleep(0.1)
+        with LOCK:
             if sid in RUNS:
-                return self._send(409, b"this chat is already answering")
+                return self._send(409, b"This chat is still answering. Stop it first, or wait for it to finish.")
             chat = CHATS.get(sid)
             followup = bool(chat and chat["messages"])
             if chat:

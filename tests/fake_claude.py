@@ -178,6 +178,8 @@ def main():
         out({"type": "system", "subtype": "session_state_changed", "state": "idle"})
         while read() is not None:  # the app closes the input to end the session
             pass
+    if "linger" in text:  # the real Claude Code takes a few seconds to close after its answer
+        time.sleep(2.5)
 
 
 if __name__ == "__main__":
