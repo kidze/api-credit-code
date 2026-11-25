@@ -55,6 +55,24 @@ def child_env(key):
     return env
 
 
+def adopt_login_path():
+    """macOS, started from an icon: apps get a bare PATH (/usr/bin:/bin:...), so Claude Code, and the commands it
+    runs, would miss Homebrew, nvm and the like. Take the PATH your shell sets up, the way a Terminal window has it."""
+    if WINDOWS:
+        return
+    shell = os.environ.get("SHELL") or "/bin/zsh"
+    try:  # a marker, because a shell's startup files may print things of their own
+        out = subprocess.run([shell, "-ilc", 'printf "\\n__ACC_PATH__%s\\n" "$PATH"'], capture_output=True,
+                             text=True, timeout=15, stdin=subprocess.DEVNULL).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return
+    if "__ACC_PATH__" not in out:
+        return
+    login = out.rsplit("__ACC_PATH__", 1)[1].splitlines()[0].strip()
+    merged = dict.fromkeys(login.split(os.pathsep) + os.environ.get("PATH", "").split(os.pathsep))
+    os.environ["PATH"] = os.pathsep.join(p for p in merged if p)
+
+
 def _login_shell_claude():
     """macOS/Linux, started from an app icon: PATH is minimal, so ask your login shell where claude is."""
     shell = os.environ.get("SHELL") or ("/bin/zsh" if sys.platform == "darwin" else "/bin/sh")

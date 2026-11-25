@@ -1,0 +1,92 @@
+name: Release
+
+# A tag like v0.1.0 builds the Windows installer and the Mac disk image, checks that both apps start, and publishes
+# them as a GitHub release. A manual run builds and checks without publishing.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows app
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Build the app
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller
+          pyinstaller --noconfirm --clean packaging/api-credit-code.spec
+      - name: Check that it starts
+        shell: pwsh
+        run: |
+          $env:API_CREDIT_CODE_HOME = Join-Path $env:RUNNER_TEMP 'acc-home'
+          Start-Process -Wait -FilePath 'dist\API Credit Code\API Credit Code.exe' -ArgumentList '--selftest'
+          $result = Join-Path $env:API_CREDIT_CODE_HOME 'selftest.txt'
+          Get-Content $result
+          if (-not (Select-String -Quiet -Path $result -Pattern 'selftest ok')) { exit 1 }
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $version = python -c "import sys; sys.path.insert(0, 'src'); import api_credit_code; print(api_credit_code.__version__)"
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { choco install innosetup --yes --no-progress }
+          & $iscc "/DAppVersion=$version" packaging\windows-installer.iss
+          if ($LASTEXITCODE) { exit 1 }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: dist/API-Credit-Code-Setup.exe
+          if-no-files-found: error
+
+  macos:
+    name: Mac app
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Build the app
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller
+          pyinstaller --noconfirm --clean packaging/api-credit-code.spec
+      - name: Check that it starts
+        run: |
+          export API_CREDIT_CODE_HOME="$RUNNER_TEMP/acc-home"
+          "dist/API Credit Code.app/Contents/MacOS/API Credit Code" --selftest
+      - name: Make the disk image
+        run: |
+          codesign --force --deep --sign - "dist/API Credit Code.app"
+          mkdir dmg
+          cp -R "dist/API Credit Code.app" dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "API Credit Code" -srcfolder dmg -ov -format UDZO dist/API-Credit-Code.dmg
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos
+          path: dist/API-Credit-Code.dmg
+          if-no-files-found: error
+
+  release:
+    name: GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: out
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" out/* --repo "$GITHUB_REPOSITORY"
+          --title "API Credit Code ${GITHUB_REF_NAME#v}" --generate-notes

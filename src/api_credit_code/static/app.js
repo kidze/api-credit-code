@@ -421,7 +421,7 @@
     el.keyPill.className = "keypill " + (s.key.set ? "ok" : "bad");
     el.keyText.textContent = s.key.set ? s.key.masked.replace(/^sk-ant-[a-z]+\d*-/, "key ") : "No API key";
     el.keyPill.title = s.key.set
-      ? `Claude Code runs on this API key (${s.key.masked}). Usage is billed to its Console organization, monthly API credits first. Click to change it.`
+      ? `Claude Code runs on this API key (${s.key.masked}). Its use is billed to the key's Console organization. Click to change the key.`
       : "Add your Anthropic API key";
   }
 

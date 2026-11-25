@@ -5,6 +5,7 @@ What it does depends on the message it gets:
   "ask"    asks to run a command (Manual / Accept edits) and says what the user answered
   "slow"   keeps working until it is stopped
   "fail"   exits with an error
+  "Explain this project"   a longer demo answer with tool steps (for the README screenshots)
 Anything else gets "Hello there" too. It logs each command line to $FAKE_CLAUDE_LOG and keeps a transcript with a
 cost-state record under $CLAUDE_CONFIG_DIR/projects, like Claude Code does, so a follow-up finds it and resumes.
 """
@@ -14,6 +15,31 @@ import sys
 import time
 import uuid
 from pathlib import Path
+
+
+DEMO = """**weather-cli** is a small command-line tool that prints the weather forecast for a city.
+
+## How it's organized
+
+| Path | What it does |
+|---|---|
+| `weather/cli.py` | Reads the arguments and prints the forecast |
+| `weather/api.py` | Calls the forecast service and caches answers for 10 minutes |
+| `tests/` | 14 unit tests (pytest) |
+
+## Where to start
+
+1. Run it: `python -m weather Paris`
+2. Read `weather/cli.py` first. It's 60 lines and calls everything else.
+3. The tests show the expected output for each command:
+
+```python
+def test_today(capsys):
+    main(["Paris"])
+    assert "Paris" in capsys.readouterr().out
+```
+
+Want me to add a `--days` option next?"""
 
 
 def out(obj):
@@ -99,7 +125,16 @@ def main():
                 return
 
     reply = "Hello there"
-    if "ask" in text:
+    seconds, cost = 1.2, 0.01
+    if "Explain this project" in text:
+        for name, inp in (("Glob", {"pattern": "**/*.py"}), ("Read", {"file_path": "README.md"}),
+                          ("Read", {"file_path": "weather/cli.py"}), ("Read", {"file_path": "weather/api.py"})):
+            out({"type": "assistant", "parent_tool_use_id": None,
+                 "message": {"content": [{"type": "tool_use", "name": name, "input": inp}]}})
+            time.sleep(0.05)
+        reply = DEMO
+        seconds, cost = 38, 0.21
+    elif "ask" in text:
         reply = "I can't ask in this mode."
         if host:
             rid = "perm_" + uuid.uuid4().hex[:8]
@@ -126,12 +161,12 @@ def main():
 
     stream(reply)
     out({"type": "assistant", "parent_tool_use_id": None, "message": {"content": [{"type": "text", "text": reply}]}})
-    total += 0.01
+    total += cost
     transcript.parent.mkdir(parents=True, exist_ok=True)
     with open(transcript, "a", encoding="utf-8") as f:
         f.write(json.dumps({"type": "cost-state", "totalCostUSD": total}) + "\n")
     out({"type": "result", "subtype": "success", "is_error": False, "result": reply, "total_cost_usd": total,
-         "duration_ms": 1200, "permission_denials": [], "modelUsage": {}})
+         "duration_ms": int(seconds * 1000), "permission_denials": [], "modelUsage": {}})
     if host:
         out({"type": "system", "subtype": "session_state_changed", "state": "idle"})
         while read() is not None:  # the app closes the input to end the session

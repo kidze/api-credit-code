@@ -1,0 +1,60 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, python: "3.10" }
+          - { os: ubuntu-latest, python: "3.13" }
+          - { os: windows-latest, python: "3.13" }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m unittest discover -s tests -v
+
+  test-mac:
+    # macOS runners cost ten times more while the repository is private: pull requests and manual runs only
+    if: github.event_name != 'push'
+    name: Tests (macos-latest, Python 3.13)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: python -m unittest discover -s tests -v
+
+  installers:
+    name: One-line installer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      ACC_SOURCE: ${{ github.workspace }}
+      ACC_NO_LAUNCH: "1"  # no icons, no browser: a self-test instead
+    steps:
+      - uses: actions/checkout@v7
+      - name: install.ps1 in Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: Get-Content .\install.ps1 -Raw | Invoke-Expression
+      - name: install.sh
+        if: runner.os != 'Windows'
+        run: bash install.sh

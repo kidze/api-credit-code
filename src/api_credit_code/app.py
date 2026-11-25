@@ -992,8 +992,9 @@ def main():
     ap.add_argument("--remove-launcher", action="store_true", help="remove the app icon")
     ap.add_argument("--selftest", action="store_true", help="start, check the app answers, and exit")
     ap.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
-    a = ap.parse_args()
     frozen = getattr(sys, "frozen", False)
+    # an app started from an icon ignores arguments it doesn't know (older macOS adds -psn_...)
+    a = ap.parse_known_args()[0] if frozen else ap.parse_args()
     a.app = a.app or frozen  # the .exe and the Mac app are always started from an icon
 
     if a.make_launcher or a.remove_launcher:
@@ -1032,6 +1033,8 @@ def main():
     STATE["port"], STATE["app"] = port, a.app
     url = f"http://localhost:{port}/"
     log(f"{APP_NAME} {__version__} on {url}  (data: {HOME})")
+    if a.app and sys.platform == "darwin":
+        cc.adopt_login_path()
     find_claude()
     load_chats()
     for srv in servers:
