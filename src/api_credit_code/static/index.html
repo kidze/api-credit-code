@@ -52,6 +52,7 @@
           <a href="https://code.claude.com/docs/en/setup" target="_blank" rel="noopener noreferrer">Claude Code setup guide</a>
         </div>
         <form class="key-form" id="keyForm" autocomplete="off" novalidate>
+          <div class="key-msg" id="keyProblem" role="status" hidden></div>
           <label class="lead" for="keyInput">Paste your Anthropic API key</label>
           <div class="key-row">
             <input id="keyInput" type="password" placeholder="sk-ant-…" spellcheck="false" autocomplete="off">
@@ -66,6 +67,7 @@
           <p class="key-note">Your key is saved on this computer and only sent to Anthropic.</p>
           <div class="key-current" id="keyCurrent" hidden>
             <span id="keyCurrentText"></span>
+            <span class="key-file" title="You can also edit this file yourself. The app reads it again for every message.">Key file: <code id="keyFile"></code></span>
             <button class="link-btn" id="keyRemove" type="button">Remove key</button>
             <button class="link-btn" id="keyClose" type="button">Close</button>
           </div>

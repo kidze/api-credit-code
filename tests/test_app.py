@@ -319,6 +319,31 @@ class AppTest(unittest.TestCase):
         self.assertNotEqual(self.get(f"/api/changes?since={v}")["version"], v)
         self.done(cid)
 
+    def test_14_key_file_by_hand(self):
+        path = self.home / "key.txt"
+        try:
+            path.write_text(f"{GOOD_KEY}\nsk-ant-api03-second{'y' * 30}\n", encoding="utf-8")
+            k = self.get("/api/status")["key"]
+            self.assertTrue(k["set"])
+            self.assertTrue(k["problem"].startswith("key.txt has 2 API keys. Using the first one"), k)
+            self.assertEqual(os.path.normcase(os.path.realpath(k["file"])), os.path.normcase(os.path.realpath(path)))
+            cid = str(uuid.uuid4())
+            self.assertEqual(self.send(cid, "hello")[0], 200)
+            bot = self.done(cid)["messages"][-1]
+            self.assertEqual(bot["status"], "ok", bot)
+            self.assertEqual(bot["keywarn"], k["problem"])  # said with the answer too
+
+            path.write_text("my key: sk-ant-oops", encoding="utf-8")
+            k = self.get("/api/status")["key"]
+            self.assertFalse(k["set"])
+            self.assertIn("no API key in key.txt", k["problem"])
+            code, body = self.send(str(uuid.uuid4()), "hello")
+            self.assertEqual(code, 400)
+            self.assertIn(b"no API key in key.txt", body)
+        finally:
+            path.write_text(GOOD_KEY + "\n", encoding="utf-8")
+        self.assertIsNone(self.get("/api/status")["key"]["problem"])
+
     def test_99_quit(self):
         self.assertEqual(self.call("/api/quit", {})[0], 200)
         self.assertEqual(self.proc.wait(15), 0)

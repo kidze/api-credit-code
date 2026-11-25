@@ -29,22 +29,44 @@ class Keys(unittest.TestCase):
     def test_save_load_delete(self):
         self.assertEqual(keys.load(self.home), (None, None))
         keys.save(self.home, KEY)
-        self.assertEqual(keys.load(self.home), (KEY, "file"))
+        self.assertEqual(keys.load(self.home), (KEY, None))
         keys.delete(self.home)
         keys.delete(self.home)  # twice is fine
         self.assertEqual(keys.load(self.home), (None, None))
 
     def test_any_editor_encoding(self):
-        for data in ((KEY + "\r\n").encode("utf-8-sig"), f"  {KEY}  ".encode("utf-16"), f"key = {KEY}".encode()):
+        for data in ((KEY + "\r\n").encode("utf-8-sig"), f"  {KEY}  ".encode("utf-16"), f"key = {KEY}".encode(),
+                     f'"{KEY}"\n\nmy work key\n'.encode(), f"{KEY}  # mine".encode(), f"{KEY}\n{KEY}\n".encode()):
             keys.key_file(self.home).write_bytes(data)
-            self.assertEqual(keys.load(self.home), (KEY, "file"))
+            self.assertEqual(keys.load(self.home), (KEY, None), data)
 
-    def test_environment_fallback(self):
-        os.environ["ANTHROPIC_API_KEY"] = KEY
+    def test_environment_is_not_used(self):
+        os.environ["ANTHROPIC_API_KEY"] = KEY  # it may belong to an organization that pays by card
         try:
-            self.assertEqual(keys.load(self.home), (KEY, "environment"))
+            self.assertEqual(keys.load(self.home), (None, None))
         finally:
             del os.environ["ANTHROPIC_API_KEY"]
+
+    def test_file_problems(self):
+        other = KEY.replace("wxyz", "abcd")
+        cases = {
+            b"": (None, "no API key in key.txt"),
+            b"my key is in the Console": (None, "no API key in key.txt"),
+            (KEY[:15] + " " + KEY[15:]).encode(): (None, "no API key in key.txt"),  # cut before it looks like a key
+            f"{KEY}\n{other}\n".encode(): (KEY, "key.txt has 2 API keys. Using the first one, sk-ant-api03-...wxyz."),
+            (KEY[:40] + " " + KEY[40:]).encode(): (KEY[:40], "cut in two"),
+            (KEY[:40] + "\r\n" + KEY[40:]).encode(): (KEY[:40], "cut in two"),
+        }
+        for data, (key, words) in cases.items():
+            keys.key_file(self.home).write_bytes(data)
+            got, problem = keys.load(self.home)
+            self.assertEqual(got, key, data)
+            self.assertIn(words, problem or "", data)
+        keys.key_file(self.home).unlink()
+        keys.key_file(self.home).mkdir()  # there, but not a file that can be read
+        got, problem = keys.load(self.home)
+        self.assertIsNone(got)
+        self.assertTrue(problem.startswith("Can't read key.txt: "), problem)
 
     def test_mask(self):
         self.assertEqual(keys.mask(KEY), "sk-ant-api03-...wxyz")

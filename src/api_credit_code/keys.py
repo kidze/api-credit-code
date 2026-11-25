@@ -2,6 +2,7 @@
 
 It is kept in key.txt in this app's folder in your user profile, and it only ever goes to Anthropic: to check it
 when you paste it, and to Claude Code, which uses it for every message. The page never gets it back in full.
+You can edit key.txt yourself too: it is read again for every message.
 """
 import json
 import os
@@ -11,6 +12,9 @@ import urllib.error
 import urllib.request
 
 KEY_RE = re.compile(r"sk-ant-[A-Za-z0-9_-]{20,}")
+# Right after a key, past a space or one line break: more characters a key is made of (but not a new key). A key has
+# no spaces in it, so this is most likely one key cut in two.
+CUT_RE = re.compile(r"(?:[ \t]+|[ \t]*\r?\n[ \t]*)(?!sk-ant-)[A-Za-z0-9_-]")
 API = "https://api.anthropic.com"
 CHECK_MODEL = "claude-haiku-5-5"  # the cheapest model: the check's one-token call costs a tiny fraction of a cent
 
@@ -25,23 +29,35 @@ def key_file(home):
 
 
 def load(home):
-    """(key, where) for the key to use: key.txt, else ANTHROPIC_API_KEY from the environment, else (None, None).
+    """(key, problem): the key in key.txt, and what's wrong with the file, as a sentence to show the person.
 
-    key.txt is read whatever an editor saved it as (UTF-8 with or without a BOM, or UTF-16), and only the key is
-    taken from it, so a stray space or line break doesn't matter.
+    (key, None): all good. (key, problem): the key is used, but the file needs a look (more than one key in it, or
+    a key that looks cut in two). (None, problem): the file is there but gives no key. (None, None): no file yet.
+
+    The file is read whatever an editor saved it as (UTF-8 with or without a BOM, or UTF-16), and only the key is
+    taken from it, so spaces, line breaks, quotes or a label like "key =" around it don't matter. Only key.txt counts:
+    an ANTHROPIC_API_KEY set on the computer is never used, as it may belong to an organization that pays by card.
     """
     try:
         data = key_file(home).read_bytes()
-    except OSError:
-        data = b""
+    except FileNotFoundError:
+        return None, None
+    except OSError as e:
+        return None, f"Can't read key.txt: {e.strerror or e}."
     for enc in ("utf-8-sig", "utf-16"):
-        found = KEY_RE.search(data.decode(enc, errors="ignore"))
+        text = data.decode(enc, errors="ignore")
+        found = list(KEY_RE.finditer(text))
         if found:
-            return found.group(0), "file"
-    found = KEY_RE.search(os.environ.get("ANTHROPIC_API_KEY", ""))
-    if found:
-        return found.group(0), "environment"
-    return None, None
+            break
+    else:
+        return None, "There's no API key in key.txt. A key starts with sk-ant- and has no spaces in it."
+    key = found[0].group(0)
+    others = {m.group(0) for m in found} - {key}
+    if others:
+        return key, f"key.txt has {len(others) + 1} API keys. Using the first one, {mask(key)}."
+    if CUT_RE.match(text, found[0].end()):
+        return key, "The key in key.txt looks cut in two by a space or line break. Put it on one line, with no spaces."
+    return key, None
 
 
 def save(home, key):

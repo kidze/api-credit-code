@@ -89,6 +89,7 @@
     setup: $("setup"), claudeMissing: $("claudeMissing"), installCmd: $("installCmd"), keyForm: $("keyForm"),
     keyInput: $("keyInput"), keySave: $("keySave"), keyMsg: $("keyMsg"), keyCurrent: $("keyCurrent"),
     keyCurrentText: $("keyCurrentText"), keyRemove: $("keyRemove"), keyClose: $("keyClose"),
+    keyProblem: $("keyProblem"), keyFile: $("keyFile"),
   };
 
   DOMPurify.addHook("afterSanitizeAttributes", (n) => {
@@ -413,16 +414,23 @@
     if (!s) return;
     el.claudeMissing.hidden = !needClaude;
     el.installCmd.textContent = installCommand(s.platform);
-    el.keyCurrent.hidden = !s.key.set;
-    el.keyCurrentText.textContent = s.key.set ? `Using ${s.key.masked}${s.key.source === "environment" ? " (from ANTHROPIC_API_KEY)" : ""}.` : "";
-    el.keyRemove.hidden = s.key.source !== "file";
+    // What's wrong with key.txt, if anything: no key to use (red), or a key to use but a file to look at (amber).
+    const k = s.key;
+    el.keyProblem.textContent = k.problem || "";
+    el.keyProblem.className = "key-msg " + (k.set ? "warn" : "bad");
+    el.keyProblem.hidden = !k.problem;
+    el.keyCurrent.hidden = !k.set && !k.problem; // no file yet: nothing to show
+    el.keyCurrentText.hidden = !k.set;
+    el.keyCurrentText.textContent = k.set ? `Using ${k.masked}.` : "";
+    el.keyFile.textContent = k.file;
+    el.keyRemove.hidden = el.keyClose.hidden = !k.set;
     if (show && !needClaude && !touch() && document.activeElement !== el.keyInput) setTimeout(() => el.keyInput.focus(), 0);
     // the key button in the corner
-    el.keyPill.className = "keypill " + (s.key.set ? "ok" : "bad");
-    el.keyText.textContent = s.key.set ? s.key.masked.replace(/^sk-ant-[a-z]+\d*-/, "key ") : "No API key";
-    el.keyPill.title = s.key.set
-      ? `Claude Code runs on this API key (${s.key.masked}). Its use is billed to the key's Console organization. Click to change the key.`
-      : "Add your Anthropic API key";
+    el.keyPill.className = "keypill " + (!k.set ? "bad" : k.problem ? "warn" : "ok");
+    el.keyText.textContent = k.set ? k.masked.replace(/^sk-ant-[a-z]+\d*-/, "key ") : "No API key";
+    el.keyPill.title = !k.set ? k.problem || "Add your Anthropic API key"
+      : k.problem ? `${k.problem} Click to see the key.`
+      : `Claude Code runs on this API key (${k.masked}). Its use is billed to the key's Console organization. Click to change the key.`;
   }
 
   function keyMessage(text, kind) {
@@ -548,6 +556,7 @@
     n.textContent = "";
     if (m.notice) n.append(node("div", "notice", m.notice));
     if (m.warn) n.append(node("div", "notice warn", "⚠ " + m.warn));
+    if (m.keywarn) n.append(node("div", "notice warn", "⚠ " + m.keywarn));
     const parts = m.parts || (m.text ? [{ k: "text", s: m.text }] : []);
     for (const p of parts) {
       if (p.k === "tools") {
@@ -1030,6 +1039,9 @@
       case "notice":
         bot.notice = ev.msg;
         break;
+      case "keywarn":
+        bot.keywarn = ev.msg;
+        break;
       case "turn":
         bot.phase = "thinking";
         bot.brk = true;
@@ -1108,6 +1120,7 @@
       });
     } catch (e) {
       toast(e.message);
+      loadStatus(); // key.txt may have changed since the page last looked: show the key screen if there's no key now
       return;
     } finally {
       sending = false;

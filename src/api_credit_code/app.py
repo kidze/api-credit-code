@@ -112,8 +112,8 @@ def claude_status():
 
 
 def key_status():
-    key, where = keys.load(HOME)
-    return {"set": bool(key), "masked": keys.mask(key), "source": where, "file": str(keys.key_file(HOME))}
+    key, problem = keys.load(HOME)
+    return {"set": bool(key), "masked": keys.mask(key), "problem": problem, "file": str(keys.key_file(HOME))}
 
 
 # ---------------------------------------------------------------- one answer
@@ -298,6 +298,8 @@ def apply(bot, ev):
             bot["notice"] = f"Claude Code ran this in {cc.MODES.get(ran, ran)} mode."
     elif t == "notice":
         bot["notice"] = ev["msg"]
+    elif t == "keywarn":
+        bot["keywarn"] = ev["msg"]
     elif t == "turn":
         bot["phase"], bot["brk"] = "thinking", True
     elif t == "text":
@@ -507,11 +509,13 @@ class Run:
 
 def run_chat(run, text, images, model, effort, budget, followup):
     chat, sid = run.chat, run.chat["id"]
-    key, _ = keys.load(HOME)
+    key, problem = keys.load(HOME)
     if not key:  # without it Claude Code would fall back to your Claude login, which isn't what this app is for
-        run.push({"t": "error", "msg": "Add your API key first."})
+        run.push({"t": "error", "msg": problem or "Add your API key first."})
         end_run(run)
         return
+    if problem:  # there's a key to use, but key.txt needs a look: say so with the answer
+        run.push({"t": "keywarn", "msg": problem})
     resume = has_transcript(sid)  # the chat's first message creates the session, later ones resume it
     before = session_cost(sid) if resume else 0.0
     args = cc.build_args(STATE["claude"], sid=sid, resume=resume, model=model, effort=effort, budget=budget,
@@ -805,8 +809,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, b"message is empty or too long")
         if not STATE["claude"]:
             return self._send(400, b"Claude Code isn't installed. Install it, then open this app again.")
-        if not keys.load(HOME)[0]:
-            return self._send(400, b"Add your API key first.")
+        key, problem = keys.load(HOME)
+        if not key:
+            return self._send(400, (problem or "Add your API key first.").encode("utf-8"))
         model = body.get("model") if body.get("model") in MODELS else DEFAULT_MODEL
         effort = body.get("effort") if body.get("effort") in EFFORTS else DEFAULT_EFFORT
         mode = body.get("mode") if body.get("mode") in cc.MODES else "auto"

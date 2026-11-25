@@ -63,7 +63,7 @@ curl -fsSL https://raw.githubusercontent.com/kidze/api-credit-code/main/install.
 
 See what's left any time: [platform.claude.com/settings/billing](https://platform.claude.com/settings/billing).
 
-Your key is saved on your own computer and only ever sent to Anthropic.
+Your key is saved on your own computer and only ever sent to Anthropic. To change it, click the key button at the top right, or [edit the key file](#faq) yourself.
 
 ## Using it
 
@@ -108,6 +108,14 @@ Follow-ups resume the same session (`--resume <chat>`). In Manual and Accept edi
 **macOS says the app can't be opened, or Apple can't check it.** Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to API Credit Code. Or use the Terminal one-liner, which needs no extra step.
 
 **"Credit balance too low".** The credits aren't claimed yet, or the key comes from a different Console organization than the one your plan's credits go to.
+
+**Can I put the key in its file myself?** Yes. It's `key.txt`, in the app's folder:
+
+- Windows: `%LOCALAPPDATA%\api-credit-code\key.txt`
+- macOS: `~/Library/Application Support/api-credit-code/key.txt`
+- Linux: `~/.local/share/api-credit-code/key.txt`
+
+Put one key in it, on one line. The app reads the file again for every message, so there's nothing to restart. If the file has no key, more than one key, or a key cut in two by a space, the app tells you. The key box (click the key button) shows where the file is.
 
 **The page says it can't reach the app.** Open it again from its icon. It quits by itself a few minutes after you close its last tab.
 
