@@ -460,10 +460,12 @@
         setupOpen = false;
         toast("Key saved. You're ready to go.");
       } else {
-        keyMessage(r.message, "warn"); // saved, but with something to know
+        setupOpen = true; // saved, but with something to know (no credits, or not checked): keep it on screen
+        keyMessage(r.message, "warn");
       }
       renderSetup();
       syncComposer();
+      if (!setupOpen && !touch()) el.input.focus();
     } catch (e) {
       keyMessage(e.message, "bad");
     } finally {
@@ -1320,6 +1322,15 @@
     setupOpen = false;
     renderSetup();
   });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || e.defaultPrevented) return;
+    if (setupOpen && status && status.key.set) {
+      setupOpen = false;
+      renderSetup();
+    } else if (el.app.classList.contains("drawer")) {
+      closeDrawer();
+    }
+  });
   el.title.addEventListener("click", () => current && startRename());
   el.log.addEventListener("scroll", updateToBottom);
   el.toBottom.addEventListener("click", () => el.log.scrollTo({ top: el.log.scrollHeight, behavior: "smooth" }));
@@ -1334,6 +1345,7 @@
   // The app answers this as soon as any chat starts or finishes answering, or is renamed, deleted or added, so a
   // page left open updates itself without a reload. It is also how the app knows a tab is still open.
   let version = null;
+  let unreachable = false; // the app stopped answering: say so once, and catch up when it's back
   async function watchChanges() {
     for (let wait = 1000; ; ) {
       const stopper = new AbortController();
@@ -1348,11 +1360,20 @@
         if (!res.ok) throw new Error(res.status);
         const r = await res.json();
         wait = 1000;
+        if (unreachable) {
+          unreachable = false;
+          loadStatus();
+        }
         if (r.version !== version) {
           version = r.version;
           await sync();
         }
       } catch {
+        if (!unreachable && wait >= 2000) { // a second failure in a row: not just a hiccup
+          unreachable = true;
+          toast(OFFLINE);
+          loadStatus(); // the key button says "App not running" until it's back
+        }
         await new Promise((done) => setTimeout(done, wait)); // the app is closed or busy: try again
         wait = Math.min(wait * 2, 15000);
       } finally {

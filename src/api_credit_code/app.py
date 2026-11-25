@@ -62,7 +62,7 @@ STATIC_FILES = {p.relative_to(STATIC).as_posix(): TYPES[p.suffix] for p in STATI
 TOKEN = secrets.token_urlsafe(32)  # the page gets it; other websites can't, so they can't drive this app
 HOME = paths.data_dir()
 CHATS_DIR = HOME / "chats"
-STATE = {"claude": None, "claude_version": None, "port": PORT, "hosts": {"127.0.0.1", "localhost", "[::1]"},
+STATE = {"claude": None, "claude_version": None, "claude_checked": 0.0, "port": PORT, "hosts": {"127.0.0.1", "localhost", "[::1]"},
          "version": 0, "seen": time.time(), "app": False}
 CHATS = {}  # chat id -> chat. LOCK guards it and the contents of every chat.
 RUNS = {}   # chat id -> Run, while an answer is being produced
@@ -105,8 +105,13 @@ def session_cost(sid):
 
 
 def claude_status():
-    """What the page needs to know about Claude Code: found, version, and whether Manual/Accept edits work."""
+    """What the page needs to know about Claude Code: found, version, and whether Manual/Accept edits work.
+    While it is missing or too old, look again (at most every few seconds): the user may have just installed or
+    updated it, and shouldn't need to restart this app for that."""
     v = STATE["claude_version"]
+    if (not STATE["claude"] or not (v and v >= cc.MIN_VERSION)) and time.time() - STATE["claude_checked"] > 5:
+        find_claude()
+        v = STATE["claude_version"]
     return {"found": bool(STATE["claude"]), "version": ".".join(map(str, v)) if v else None,
             "host_ok": bool(v and v >= cc.MIN_VERSION)}
 
@@ -205,7 +210,7 @@ def decode_images(raw):
     if raw is None:
         return []
     if not isinstance(raw, list) or len(raw) > MAX_IMAGES:
-        raise ValueError(f"up to {MAX_IMAGES} pictures per message")
+        raise ValueError(f"You can send up to {MAX_IMAGES} pictures with one message.")
     out = []
     for r in raw:
         ext = IMAGE_TYPES.get(r.get("type")) if isinstance(r, dict) else None
@@ -215,7 +220,7 @@ def decode_images(raw):
             blob = b""
         magic = b"\x89PNG\r\n\x1a\n" if ext == ".png" else b"\xff\xd8\xff"
         if not blob or len(blob) > MAX_IMAGE_BYTES or not blob.startswith(magic):
-            raise ValueError("a picture was not a PNG or JPEG under 5 MB")
+            raise ValueError("Pictures must be PNG or JPEG, under 5 MB each.")
         im = {"type": r["type"], "ext": ext, "blob": blob}
         for k in ("w", "h"):  # only so the page can lay the picture out before it loads
             try:
@@ -351,6 +356,11 @@ def changed():
     WAKE.notify_all()
 
 
+def clean_text(s):
+    """Text from the page, safe to save: a lone half of an emoji pair (it can't be written as UTF-8) becomes "?"."""
+    return str(s or "").encode("utf-8", "replace").decode("utf-8")
+
+
 def save_chat(chat):
     """Write the chat's file. Call with LOCK held."""
     CHATS_DIR.mkdir(parents=True, exist_ok=True)
@@ -369,6 +379,8 @@ def load_chats():
             continue
         if not isinstance(chat, dict) or chat.get("id") != path.stem or not isinstance(chat.get("messages"), list):
             continue
+        for k, v in (("title", "Untitled chat"), ("folder", ""), ("created", 0), ("updated", 0), ("cost", 0.0)):
+            chat.setdefault(k, v)  # a file from an older or hand-edited copy still lists
         for m in chat["messages"]:
             if m.get("role") == "bot" and m.get("status") == "running":  # the app was closed mid-answer
                 finish(m, "stopped")
@@ -507,7 +519,20 @@ class Run:
             self.close_input()
 
 
-def run_chat(run, text, images, model, effort, budget, followup):
+def run_chat(run, *args):
+    try:
+        _run_chat(run, *args)
+    except Exception as e:  # a bug in here must not leave the chat "answering" for ever
+        log(f"chat {run.chat['id'][:8]}  crashed: {e!r}")
+        cc.kill_tree(run.proc)
+        if not run.done:
+            run.push({"t": "error", "msg": f"Something went wrong in {APP_NAME}: {e}. Details are in app.log."})
+    finally:
+        if not run.done:
+            end_run(run)
+
+
+def _run_chat(run, text, images, model, effort, budget, followup):
     chat, sid = run.chat, run.chat["id"]
     key, problem = keys.load(HOME)
     if not key:  # without it Claude Code would fall back to your Claude login, which isn't what this app is for
@@ -532,6 +557,8 @@ def run_chat(run, text, images, model, effort, budget, followup):
         end_run(run)
         return
     run.proc, run.stdin_open = proc, True
+    if run.stopped:  # Stop was pressed while Claude Code was starting
+        cc.kill_tree(proc)
     err_tail = []
     threading.Thread(target=drain, args=(io.TextIOWrapper(proc.stderr, encoding="utf-8", errors="replace"),
                                          err_tail), daemon=True).start()
@@ -551,13 +578,18 @@ def run_chat(run, text, images, model, effort, budget, followup):
             run.tick()
 
     threading.Thread(target=ticker, daemon=True).start()
-    if followup and not resume:
+    answered = any(m.get("role") == "bot" and m is not run.bot and (m.get("status") == "ok" or m.get("cost"))
+                   for m in chat["messages"])
+    if followup and not resume and answered:  # (an earlier message that failed before it began doesn't count)
         run.push({"t": "notice", "msg": "Claude Code no longer has the earlier part of this chat "
                                         "(it keeps chats for 30 days), so this answer starts fresh."})
     for line in io.TextIOWrapper(proc.stdout, encoding="utf-8", errors="replace"):
         try:
             ev = json.loads(line)
         except ValueError:
+            if line.strip():  # a plain-text error from Claude Code: keep it for the error message
+                err_tail.append(ANSI.sub("", line.strip())[:500])
+                del err_tail[:-20]
             continue
         if not isinstance(ev, dict):
             continue
@@ -593,7 +625,8 @@ def run_chat(run, text, images, model, effort, budget, followup):
         if run.stopped:
             run.push({"t": "stopped"})
         else:
-            msg = " | ".join(err_tail[-3:]) or f"claude exited with code {proc.returncode}"
+            msg = " | ".join([t for t in err_tail if t][-3:]) or (
+                f"Claude Code stopped with error code {proc.returncode}. Running claude in a terminal may show why.")
             if "unknown option" in msg:
                 msg += "\n\nYour Claude Code may be too old for this app. Run `claude update`, then try again."
             run.push({"t": "error", "msg": msg})
@@ -611,7 +644,10 @@ def end_run(run):
         RUNS.pop(run.chat["id"], None)
         run.chat["cost"] = sum(m.get("cost") or 0 for m in run.chat["messages"] if m["role"] == "bot")
         run.chat["updated"] = now_ms()
-        save_chat(run.chat)
+        try:
+            save_chat(run.chat)
+        except (OSError, ValueError) as e:
+            log(f"couldn't save chat {run.chat['id'][:8]}: {e}")
         changed()
 
 
@@ -731,15 +767,21 @@ class Handler(BaseHTTPRequestHandler):
         STATE["seen"] = time.time()
         try:
             n = int(self.headers.get("Content-Length") or 0)
-            body = json.loads(self.rfile.read(n)) if 0 < n <= MAX_BODY else {}
-        except ValueError:
+            if n > MAX_BODY:
+                return self._send(413, b"That's too much to send at once. Try fewer or smaller pictures.")
+            body = json.loads(self.rfile.read(n)) if n > 0 else {}
+        except (ValueError, RecursionError):
             return self._send(400, b"bad request")
         if not isinstance(body, dict):
             return self._send(400, b"bad request")
         if self.path == "/api/key":
             return self._save_key(body)
         if self.path == "/api/key/delete":
-            keys.delete(HOME)
+            try:
+                keys.delete(HOME)
+            except OSError as e:
+                return self._send(500, f"Couldn't remove key.txt ({e.strerror or e}). Delete it yourself: "
+                                       f"{keys.key_file(HOME)}".encode("utf-8"))
             return self._json(200, {"key": key_status()})
         if self.path == "/api/quit":
             self._json(200, {"bye": True})
@@ -761,15 +803,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(409, b"Claude isn't waiting for that answer any more.")
             return self._json(200, {"answered": True})
         if m and m.group(2) == "rename":
-            title = " ".join(str(body.get("title") or "").split())[:80]
+            title = " ".join(clean_text(body.get("title")).split())[:80]
             if not title:
-                return self._send(400, b"the name is empty")
+                return self._send(400, b"Type a name first.")
             with LOCK:
                 chat = CHATS.get(m.group(1))
                 if not chat:
                     return self._send(404, b"no such chat")
-                chat["title"] = title
-                save_chat(chat)
+                old, chat["title"] = chat["title"], title
+                try:
+                    save_chat(chat)
+                except (OSError, ValueError) as e:
+                    chat["title"] = old
+                    return self._send(500, f"Couldn't save the new name: {e}".encode("utf-8"))
                 changed()
             return self._json(200, {"title": title})
         if m and m.group(2) == "delete":
@@ -784,10 +830,13 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, b"not found")
 
     def _save_key(self, body):
-        found = keys.KEY_RE.search(str(body.get("key") or ""))
-        if not found:
-            return self._json(200, {"ok": False, "status": "bad", "key": key_status(),
-                                    "message": "That isn't an API key. Keys start with sk-ant-."})
+        raw = str(body.get("key") or "")
+        found = keys.KEY_RE.search(raw)
+        if not found or keys.CUT_RE.match(raw, found.end()):
+            return self._json(200, {"ok": False, "status": "bad", "key": key_status(), "message": (
+                "That isn't an API key. Keys start with sk-ant-." if "sk-ant-" not in raw else
+                "That isn't the whole key: it has a space or line break in it, or part of it is missing. "
+                "Copy it again from the Console, all in one piece.")})
         key = found.group(0)
         status, message = keys.check(key)
         if status != "bad":
@@ -800,23 +849,29 @@ class Handler(BaseHTTPRequestHandler):
         return self._json(200, {"ok": status != "bad", "status": status, "message": message, "key": key_status()})
 
     def _start(self, sid, body):
-        text = str(body.get("message") or "").strip()
+        text = clean_text(body.get("message")).strip()
         try:
             images = decode_images(body.get("images"))
         except ValueError as e:
             return self._send(400, str(e).encode("utf-8"))
-        if (not text and not images) or len(text) > MAX_CHARS:
-            return self._send(400, b"message is empty or too long")
-        if not STATE["claude"]:
-            return self._send(400, b"Claude Code isn't installed. Install it, then open this app again.")
+        if not text and not images:
+            return self._send(400, b"Type a message first.")
+        if len(text) > MAX_CHARS:
+            return self._send(400, f"That message is too long: the limit is {MAX_CHARS:,} characters.".encode("utf-8"))
+        claude = claude_status()  # looks again if Claude Code was missing or too old
+        if not claude["found"]:
+            return self._send(400, b"Claude Code isn't installed on this computer. Install it, then try again.")
         key, problem = keys.load(HOME)
         if not key:
-            return self._send(400, (problem or "Add your API key first.").encode("utf-8"))
+            return self._send(400, (problem or "There's no API key yet. Click the key button at the top right and "
+                                               "paste your key.").encode("utf-8"))
         model = body.get("model") if body.get("model") in MODELS else DEFAULT_MODEL
         effort = body.get("effort") if body.get("effort") in EFFORTS else DEFAULT_EFFORT
         mode = body.get("mode") if body.get("mode") in cc.MODES else "auto"
-        if mode in cc.HOST_MODES and not claude_status()["host_ok"]:
-            return self._send(400, b"Manual and Accept edits need a newer Claude Code. Run: claude update")
+        if mode in cc.HOST_MODES and not claude["host_ok"]:
+            need = ".".join(map(str, cc.MIN_VERSION))
+            return self._send(400, f"Manual and Accept edits need Claude Code {need} or newer. Run: claude update, "
+                                   "then try again.".encode("utf-8"))
         try:
             budget = min(max(float(body.get("budget") or 5), 0.1), 50.0)
         except (TypeError, ValueError):
@@ -829,12 +884,12 @@ class Handler(BaseHTTPRequestHandler):
             if chat:
                 folder = chat["folder"]
             else:
-                folder = str(body.get("folder") or "")
-                if not folders.allowed(folder, folders.trusted(paths.claude_state_file())):
+                folder = folders.match(str(body.get("folder") or ""), folders.trusted(paths.claude_state_file()))
+                if not folder:
                     return self._send(400, b"Pick a folder from the list. To add one, open it once with `claude` "
                                            b"in a terminal and say yes when it asks whether you trust it.")
             if not os.path.isdir(folder):
-                return self._send(400, f"This chat's folder is gone: {folder}".encode("utf-8"))
+                return self._send(400, f"This chat's folder is gone: {folder}. Start a new chat.".encode("utf-8"))
             if not chat:
                 chat = CHATS[sid] = {"id": sid, "title": make_title(text or "Picture"), "folder": folder,
                                      "created": now_ms(), "updated": now_ms(), "cost": 0.0, "messages": []}
@@ -843,7 +898,7 @@ class Handler(BaseHTTPRequestHandler):
             except OSError as e:
                 if not followup:
                     CHATS.pop(sid, None)
-                return self._send(500, f"couldn't save the picture: {e}".encode("utf-8"))
+                return self._send(500, f"Couldn't save the picture: {e}".encode("utf-8"))
             user = {"role": "user", "text": text, "ts": now_ms()}
             if saved:
                 user["images"] = saved
@@ -851,8 +906,14 @@ class Handler(BaseHTTPRequestHandler):
                    "effort": effort, "mode": mode, "budget": budget, "started": now_ms()}
             chat["messages"] += [user, bot]
             chat["updated"] = now_ms()
+            try:  # saved before it starts, so a chat that can't be saved never starts "answering"
+                save_chat(chat)
+            except (OSError, ValueError) as e:
+                del chat["messages"][-2:]
+                if not followup:
+                    CHATS.pop(sid, None)
+                return self._send(500, f"Couldn't save this chat in {CHATS_DIR}: {e}".encode("utf-8"))
             run = RUNS[sid] = Run(chat, bot, mode)
-            save_chat(chat)
             changed()
         files = [(im["type"], CHATS_DIR / sid / s["name"]) for im, s in zip(images, saved)]
         threading.Thread(target=run_chat, args=(run, text, files, model, effort, budget, followup), daemon=True).start()
@@ -945,6 +1006,7 @@ def quit_when_closed():
 
 
 def find_claude():
+    STATE["claude_checked"] = time.time()
     STATE["claude"] = cc.find()
     STATE["claude_version"] = cc.version(STATE["claude"]) if STATE["claude"] else None
     if not STATE["claude"]:
@@ -1003,6 +1065,8 @@ def main():
     frozen = getattr(sys, "frozen", False)
     # an app started from an icon ignores arguments it doesn't know (older macOS adds -psn_...)
     a = ap.parse_known_args()[0] if frozen else ap.parse_args()
+    if not 1 <= a.port <= 65535:
+        ap.error("--port must be a number from 1 to 65535")
     a.app = a.app or frozen  # the .exe and the Mac app are always started from an icon
 
     if a.make_launcher or a.remove_launcher:
@@ -1025,7 +1089,7 @@ def main():
     elif hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
 
-    for port in range(a.port, a.port + 10):  # another program may have taken the port: try the next few
+    for port in range(a.port, min(a.port + 10, 65536)):  # another program may have the port: try the next few
         if running_copy(port):
             log(f"{APP_NAME} is already running on port {port}: opening a tab")
             if not a.no_browser:
@@ -1037,7 +1101,7 @@ def main():
         except OSError:
             continue
     else:
-        sys.exit(f"Ports {a.port}-{a.port + 9} are all busy. Start with --port <another number>.")
+        sys.exit(f"Ports {a.port}-{min(a.port + 9, 65535)} are all busy. Start with --port <another number>.")
     STATE["port"], STATE["app"] = port, a.app
     url = f"http://localhost:{port}/"
     log(f"{APP_NAME} {__version__} on {url}  (data: {HOME})")

@@ -69,6 +69,9 @@ function Install-ApiCreditCode {
         if ($LASTEXITCODE) { throw 'The self-test failed (see the messages above).' }
     } else {
         & $python -m api_credit_code --make-launcher | Out-Null
+        if ($LASTEXITCODE) {
+            Write-Host "No Start menu icon was made (see above). You can start it with: & '$python' -m api_credit_code --app" -ForegroundColor Yellow
+        }
         $running = $false
         try { $running = (Invoke-RestMethod -Uri 'http://127.0.0.1:8790/api/hello' -TimeoutSec 2).app -eq 'api-credit-code' } catch { }
         if ($running) {

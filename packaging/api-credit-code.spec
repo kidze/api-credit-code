@@ -19,7 +19,9 @@ from api_credit_code import __version__  # noqa: E402
 a = Analysis(  # noqa: F821
     [str(ROOT / "packaging" / "entry.py")],
     pathex=[str(SRC)],
-    datas=[(str(STATIC), "api_credit_code/static")],
+    # the page, and the licenses that come with what's inside the app
+    datas=[(str(STATIC), "api_credit_code/static"), (str(ROOT / "LICENSE"), "."),
+           (str(ROOT / "THIRD_PARTY_NOTICES.md"), "."), (str(ROOT / "licenses"), "licenses")],
     excludes=["tkinter"],
 )
 pyz = PYZ(a.pure)  # noqa: F821

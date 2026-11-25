@@ -7,7 +7,6 @@ You can edit key.txt yourself too: it is read again for every message.
 import json
 import os
 import re
-import sys
 import urllib.error
 import urllib.request
 
@@ -43,7 +42,8 @@ def load(home):
     except FileNotFoundError:
         return None, None
     except OSError as e:
-        return None, f"Can't read key.txt: {e.strerror or e}."
+        return None, (f"Can't read key.txt ({e.strerror or e}). Paste your key below to replace it, or delete the file "
+                      "and try again.")
     for enc in ("utf-8-sig", "utf-16"):
         text = data.decode(enc, errors="ignore")
         found = list(KEY_RE.finditer(text))
@@ -65,9 +65,14 @@ def save(home, key):
     home.mkdir(parents=True, exist_ok=True)
     path = key_file(home)
     tmp = path.with_name("key.txt.tmp")
-    tmp.write_text(key + "\n", encoding="utf-8")
-    if sys.platform != "win32":  # on Windows the profile folder is already private to its user
-        os.chmod(tmp, 0o600)
+    try:
+        tmp.unlink()  # a leftover from an interrupted save
+    except FileNotFoundError:
+        pass
+    # macOS/Linux: private from the moment it exists. On Windows the profile folder is already private to its user.
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write((key + "\n").encode("utf-8"))
     os.replace(tmp, path)
 
 

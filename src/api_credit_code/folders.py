@@ -56,5 +56,14 @@ def label(path, home=None):
     return name or str(path)
 
 
+def match(path, folders):
+    """The trusted folder that `path` names, spelled the way it is listed, or None. A chat runs in that spelling,
+    not in whatever the request sent."""
+    if not path:
+        return None
+    k = _key(path)
+    return next((f["path"] for f in folders if _key(f["path"]) == k), None)
+
+
 def allowed(path, folders):
-    return bool(path) and any(_key(path) == _key(f["path"]) for f in folders)
+    return match(path, folders) is not None

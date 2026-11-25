@@ -25,9 +25,15 @@ HOST_MODES = {"default", "acceptEdits"}  # modes where Claude asks you, through 
 PROMPT = ("You are answering through API Credit Code, a local chat window that runs Claude Code once per message "
           "in the folder the user picked. Format your answers for a chat window: Markdown is rendered. "
           "Interactive prompts can't be answered here, so ask any question you have in your reply.")
+# Plan mode: the plan itself is the answer. The page shows buttons under it to carry the plan out.
+PLAN_PROMPT = (" You are in plan mode: write the plan as your reply and stop there. Don't call ExitPlanMode, don't "
+               "mention plan files, and don't ask whether to go ahead: the user carries the plan out with the buttons "
+               "under your reply.")
 
 # Each of these outranks ANTHROPIC_API_KEY, so with one set a run would not be billed to the key.
 OUTRANK_KEY = {"ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"}
+# Sends Claude Code, and the key, to another server instead of Anthropic's API, where the credits don't pay.
+REDIRECT = {"ANTHROPIC_BASE_URL"}
 # Set by a Claude Code session for its own child processes; a chat run must start as its own top-level session.
 PARENT_VARS = {"CLAUDECODE", "CLAUDE_PID", "CLAUDE_EFFORT", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_EXECPATH",
                "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_SESSION_ATTENDED",
@@ -44,7 +50,7 @@ def popen_kwargs():
 
 def base_env():
     return {k: v for k, v in os.environ.items()
-            if k not in OUTRANK_KEY and k not in PARENT_VARS and k not in FORCES_MANUAL
+            if k not in OUTRANK_KEY and k not in REDIRECT and k not in PARENT_VARS and k not in FORCES_MANUAL
             and not k.startswith(("CLAUDE_CODE_BRIDGE_", "CLAUDE_CODE_MESSAGING_"))}
 
 
@@ -129,7 +135,7 @@ def build_args(cmd, *, sid, resume, model, effort, budget, mode):
     """One message's command line. The message itself goes in on stdin, as a stream-json line."""
     args = [*cmd, "-p", "--output-format", "stream-json", "--input-format", "stream-json", "--verbose",
             "--include-partial-messages", "--model", model, "--effort", effort, "--max-budget-usd", f"{budget:.2f}",
-            "--append-system-prompt", PROMPT, "--permission-mode", mode]
+            "--append-system-prompt", PROMPT + (PLAN_PROMPT if mode == "plan" else ""), "--permission-mode", mode]
     if mode in HOST_MODES:
         # Claude Code sends each "may I?" to this app, which shows it in the page. Claude's own question tool is
         # left out: a question it asked there would wait for an answer this app can't give.

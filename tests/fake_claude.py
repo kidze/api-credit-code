@@ -5,6 +5,7 @@ What it does depends on the message it gets:
   "ask"    asks to run a command (Manual / Accept edits) and says what the user answered
   "slow"   keeps working until it is stopped
   "fail"   exits with an error
+  "outdated" / "plain"   exits with an old Claude Code's error / with an error printed as plain text
   "Explain this project"   a longer demo answer with tool steps (for the README screenshots)
 Anything else gets "Hello there" too. It logs each command line to $FAKE_CLAUDE_LOG and keeps a transcript with a
 cost-state record under $CLAUDE_CONFIG_DIR/projects, like Claude Code does, so a follow-up finds it and resumes.
@@ -106,6 +107,9 @@ def main():
         sys.exit(1)
     if "outdated" in text:  # what an old Claude Code says about a flag it doesn't know
         sys.stderr.write("error: unknown option '--permission-prompts'\n")
+        sys.exit(1)
+    if "plain" in text:  # an error printed as plain text where the JSON events go
+        print("Error: plain trouble")
         sys.exit(1)
 
     if "slow" in text:

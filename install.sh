@@ -41,7 +41,7 @@ main() {
     if [ -n "${ACC_NO_LAUNCH:-}" ]; then
         "$app" --selftest
     else
-        "$app" --make-launcher >/dev/null
+        "$app" --make-launcher >/dev/null || echo "No app icon was made (see above). You can start it with: $app"
         if curl -fsS --max-time 2 http://127.0.0.1:8790/api/hello 2>/dev/null | grep -q api-credit-code; then
             echo "An older copy is still running: click Quit at the bottom of its chat list, then open it again."
         else
@@ -51,6 +51,9 @@ main() {
 
     echo ""
     echo "$version is installed."
+    if ! command -v api-credit-code >/dev/null 2>&1; then
+        echo "To use the api-credit-code command in a terminal, run: $uv tool update-shell (then open a new terminal)"
+    fi
     if [ -z "${ACC_NO_LAUNCH:-}" ]; then
         if [ "$(uname)" = "Darwin" ]; then
             echo "It opens in your browser. Next time, open API Credit Code from Applications (in your home folder)."

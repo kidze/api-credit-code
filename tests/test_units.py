@@ -29,7 +29,11 @@ class Keys(unittest.TestCase):
     def test_save_load_delete(self):
         self.assertEqual(keys.load(self.home), (None, None))
         keys.save(self.home, KEY)
+        keys.save(self.home, KEY)  # again, over the old file
         self.assertEqual(keys.load(self.home), (KEY, None))
+        if os.name == "posix":
+            self.assertEqual(keys.key_file(self.home).stat().st_mode & 0o777, 0o600)
+        self.assertFalse(keys.key_file(self.home).with_name("key.txt.tmp").exists())
         keys.delete(self.home)
         keys.delete(self.home)  # twice is fine
         self.assertEqual(keys.load(self.home), (None, None))
@@ -66,7 +70,7 @@ class Keys(unittest.TestCase):
         keys.key_file(self.home).mkdir()  # there, but not a file that can be read
         got, problem = keys.load(self.home)
         self.assertIsNone(got)
-        self.assertTrue(problem.startswith("Can't read key.txt: "), problem)
+        self.assertTrue(problem.startswith("Can't read key.txt ("), problem)
 
     def test_mask(self):
         self.assertEqual(keys.mask(KEY), "sk-ant-api03-...wxyz")
@@ -105,6 +109,9 @@ class Folders(unittest.TestCase):
             self.assertTrue(folders.allowed(str(a), got))
             self.assertFalse(folders.allowed(str(no), got))
             self.assertFalse(folders.allowed("", got))
+            # a chat runs in the folder as it is listed, whatever spelling the request used
+            self.assertEqual(folders.match(str(a) + os.sep + ".", got), str(a))
+            self.assertIsNone(folders.match(str(no), got))
 
     def test_missing_or_broken_state_file(self):
         with tempfile.TemporaryDirectory() as t:
@@ -131,6 +138,11 @@ class CommandLine(unittest.TestCase):
             self.assertEqual(a[a.index("--disallowedTools") + 1], "AskUserQuestion")
             self.assertNotIn("--permission-prompts", a)
 
+    def test_plan_prompt(self):
+        for mode, said in (("plan", True), ("auto", False)):
+            a = self.args(mode)
+            self.assertEqual("ExitPlanMode" in a[a.index("--append-system-prompt") + 1], said)
+
     def test_session_and_budget(self):
         a = self.args("auto")
         self.assertEqual(a[-2:], ["--session-id", "abc"])
@@ -143,7 +155,7 @@ class CommandLine(unittest.TestCase):
         saved = dict(os.environ)
         os.environ.update(ANTHROPIC_AUTH_TOKEN="t", CLAUDE_CODE_USE_BEDROCK="1", CLAUDECODE="1",
                           CLAUDE_CODE_SESSION_ID="x", CLAUDE_CODE_BRIDGE_URL="u", HOME_SAFE="kept",
-                          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB="1")
+                          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB="1", ANTHROPIC_BASE_URL="https://gateway.example")
         try:
             env = cc.child_env(KEY)
         finally:
@@ -152,7 +164,7 @@ class CommandLine(unittest.TestCase):
         self.assertEqual(env["ANTHROPIC_API_KEY"], KEY)
         self.assertEqual(env["HOME_SAFE"], "kept")
         for k in ("ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDECODE", "CLAUDE_CODE_SESSION_ID",
-                  "CLAUDE_CODE_BRIDGE_URL", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"):
+                  "CLAUDE_CODE_BRIDGE_URL", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "ANTHROPIC_BASE_URL"):
             self.assertNotIn(k, env)
 
     def test_find_override(self):

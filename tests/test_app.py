@@ -159,6 +159,10 @@ class AppTest(unittest.TestCase):
         r = json.loads(self.call("/api/key", {"key": "sk-ant-api03-" + "x" * 30})[1])
         self.assertFalse(r["ok"])
         self.assertFalse(r["key"]["set"])
+        for cut in (25, 35):  # cut before and after it looks like a key
+            r = json.loads(self.call("/api/key", {"key": GOOD_KEY[:cut] + " " + GOOD_KEY[cut:]})[1])
+            self.assertFalse(r["ok"])
+            self.assertIn("space or line break", r["message"])
         r = json.loads(self.call("/api/key", {"key": "sk-ant-api03-nocredit" + "x" * 30})[1])
         self.assertTrue(r["ok"])
         self.assertEqual(r["status"], "nocredit")
@@ -284,6 +288,24 @@ class AppTest(unittest.TestCase):
         self.assertEqual(self.send(cid, "outdated")[0], 200)
         bot = self.done(cid)["messages"][-1]
         self.assertIn("claude update", bot["error"])
+        # a follow-up after a message that never got going: no "Claude Code no longer has this chat" notice
+        self.assertEqual(self.send(cid, "hello")[0], 200)
+        bot = self.done(cid)["messages"][-1]
+        self.assertEqual(bot["status"], "ok", bot)
+        self.assertNotIn("notice", bot)
+        cid = str(uuid.uuid4())
+        self.assertEqual(self.send(cid, "plain")[0], 200)
+        self.assertIn("Error: plain trouble", self.done(cid)["messages"][-1]["error"])
+
+    def test_10b_bad_requests_get_clear_answers(self):
+        self.assertEqual(self.send(str(uuid.uuid4()), "   "), (400, b"Type a message first."))
+        nested = b"[" * 50000 + b"]" * 50000
+        req = urllib.request.Request(self.base + f"/api/chats/{uuid.uuid4()}/send", data=nested, method="POST",
+                                     headers={"X-Token": self.token, "Content-Type": "application/json"})
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            urllib.request.urlopen(req, timeout=30)
+        self.assertEqual(caught.exception.code, 400)
+        caught.exception.close()
 
     def test_11_pictures(self):
         cid = str(uuid.uuid4())

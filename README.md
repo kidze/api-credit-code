@@ -99,6 +99,7 @@ Follow-ups resume the same session (`--resume <chat>`). In Manual and Accept edi
 - **One folder holds everything:** your key, your chats and a log. That's `%LOCALAPPDATA%\api-credit-code` on Windows, `~/Library/Application Support/api-credit-code` on macOS and `~/.local/share/api-credit-code` on Linux.
 - **No telemetry, no accounts, no servers of its own.** The app itself contacts Anthropic only to check a key when you save it. Everything else goes through Claude Code.
 - **Auto mode acts without asking.** Claude changes files and runs commands in the folder by itself. Pick Manual when that matters.
+- **Commands Claude runs can see your key**, as with any API key set in a terminal. If that worries you, make a key just for this app; you can delete it in the Console any time.
 - **Look before you run.** As with any code from GitHub, read it or scan it with your antivirus first. It's under 4,000 lines of plain Python, JavaScript and CSS, with no dependencies.
 
 ## FAQ
@@ -117,13 +118,15 @@ Follow-ups resume the same session (`--resume <chat>`). In Manual and Accept edi
 
 Put one key in it, on one line. The app reads the file again for every message, so there's nothing to restart. If the file has no key, more than one key, or a key cut in two by a space, the app tells you. The key box (click the key button) shows where the file is.
 
-**The page says it can't reach the app.** Open it again from its icon. It quits by itself a few minutes after you close its last tab.
+**The page says it can't reach the app.** Open it again from its icon. Started from its icon, it quits by itself a few minutes after you close its last tab.
 
 **Something else uses port 8790.** The app tries the next few ports by itself. Or start it with `api-credit-code --port 8800`.
 
 **Where's the log?** `app.log`, in the folder listed under [Privacy](#privacy-and-safety).
 
 ## Uninstall
+
+First click **Quit** in the app (under the chat list). Then:
 
 - **Windows, one-liner install:** `py -m api_credit_code --remove-launcher; py -m pip uninstall -y api-credit-code`
 - **macOS or Linux, one-liner install:** `api-credit-code --remove-launcher; uv tool uninstall api-credit-code`
