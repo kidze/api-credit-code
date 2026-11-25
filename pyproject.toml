@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "api-credit-code"
+dynamic = ["version"]
+description = "Spend your Claude plan's monthly API credits with your own Claude Code, from a browser tab."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "licenses/*"]
+authors = [{ name = "kidze" }]
+keywords = ["claude", "claude-code", "anthropic", "api-credits"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Web Environment",
+  "Intended Audience :: Developers",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/kidze/api-credit-code"
+Issues = "https://github.com/kidze/api-credit-code/issues"
+
+[project.scripts]
+api-credit-code = "api_credit_code.app:main"
+
+[tool.hatch.version]
+path = "src/api_credit_code/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/api_credit_code"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "licenses", "LICENSE", "THIRD_PARTY_NOTICES.md", "README.md"]
