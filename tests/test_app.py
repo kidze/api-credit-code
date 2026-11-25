@@ -202,7 +202,7 @@ class AppTest(unittest.TestCase):
         self.assertNotIn("--permission-prompt-tool", a)
         self.assertEqual(a[a.index("--model") + 1], "claude-haiku-5-5")
         self.assertTrue(run["key"])
-        self.assertEqual(run["scrub"], "1")
+        self.assertIsNone(run["scrub"])  # it would force Manual mode
         self.assertEqual(os.path.normcase(run["cwd"]), os.path.normcase(str(self.project)))
 
         # the follow-up resumes the same session, in the mode picked for it, in the chat's own folder
@@ -223,6 +223,7 @@ class AppTest(unittest.TestCase):
         self.assertEqual(ask["tool"], "Bash")
         self.assertEqual(ask["detail"], "echo hi")
         self.assertEqual(ask["title"], "Run a command")
+        self.assertEqual(ask["reason"], f"Say hi · Bash commands need approval · Path: {self.project}")
         self.assertEqual(self.call(f"/api/chats/{cid}/answer", {"ask": "perm_nope", "allow": True})[0], 409)
         self.assertEqual(self.call(f"/api/chats/{cid}/answer", {"ask": ask["id"], "allow": True})[0], 200)
         bot = self.done(cid)["messages"][-1]

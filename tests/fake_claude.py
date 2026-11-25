@@ -103,10 +103,11 @@ def main():
         reply = "I can't ask in this mode."
         if host:
             rid = "perm_" + uuid.uuid4().hex[:8]
-            out({"type": "control_request", "request_id": rid, "request": {
-                "subtype": "can_use_tool", "tool_name": "Bash", "tool_use_id": "toolu_1",
-                "input": {"command": "echo hi", "description": "Say hi"},
-                "decision_reason": "Bash commands need approval"}})
+            out({"type": "control_request", "request_id": rid, "request": {  # the fields Claude Code 2.1.323 sends
+                "subtype": "can_use_tool", "tool_name": "Bash", "display_name": "Bash", "tool_use_id": "toolu_1",
+                "input": {"command": "echo hi", "description": "Say hi"}, "description": "Say hi",
+                "decision_reason": "Bash commands need approval", "blocked_path": os.getcwd(),
+                "permission_suggestions": [{"type": "setMode", "mode": "acceptEdits", "destination": "session"}]}})
             while True:
                 ev = read()
                 if ev is None:

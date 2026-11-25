@@ -32,6 +32,9 @@ OUTRANK_KEY = {"ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_U
 PARENT_VARS = {"CLAUDECODE", "CLAUDE_PID", "CLAUDE_EFFORT", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_EXECPATH",
                "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_SESSION_ATTENDED",
                "CLAUDE_CODE_ENVIRONMENT_KIND", "CLAUDE_CODE_WORKER_EPOCH", "CLAUDE_CODE_SSE_PORT"}
+# Hides the key from the commands Claude runs, but Claude Code then forces every run into Manual mode (seen on
+# 2.1.323: "Permission mode forced to default"), which would quietly break Auto and Plan.
+FORCES_MANUAL = {"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"}
 
 
 def popen_kwargs():
@@ -41,15 +44,14 @@ def popen_kwargs():
 
 def base_env():
     return {k: v for k, v in os.environ.items()
-            if k not in OUTRANK_KEY and k not in PARENT_VARS
+            if k not in OUTRANK_KEY and k not in PARENT_VARS and k not in FORCES_MANUAL
             and not k.startswith(("CLAUDE_CODE_BRIDGE_", "CLAUDE_CODE_MESSAGING_"))}
 
 
 def child_env(key):
+    """Claude Code gets the key the way Anthropic documents for API keys: in ANTHROPIC_API_KEY."""
     env = base_env()
     env["ANTHROPIC_API_KEY"] = key
-    # Commands, hooks and MCP servers that Claude Code starts don't get the key.
-    env["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"] = "1"
     return env
 
 

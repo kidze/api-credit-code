@@ -293,8 +293,9 @@ def apply(bot, ev):
             bot["model"] = ev["model"]
         if ev.get("billing_ok") is False:
             bot["warn"] = "This answer was NOT billed to your API key."
-        if ev.get("mode") and bot.get("mode") and ev["mode"] != bot["mode"]:
-            bot["notice"] = f"Claude Code ran this in {cc.MODES.get(ev['mode'], ev['mode'])} mode."
+        ran = {"manual": "default"}.get(ev.get("mode"), ev.get("mode"))  # newer Claude Code calls Manual "manual"
+        if ran and bot.get("mode") and ran != bot["mode"]:
+            bot["notice"] = f"Claude Code ran this in {cc.MODES.get(ran, ran)} mode."
     elif t == "notice":
         bot["notice"] = ev["msg"]
     elif t == "turn":
@@ -440,14 +441,18 @@ class Run:
             return
         tool = str(req.get("tool_name") or "a tool")
         inp = req.get("input") if isinstance(req.get("input"), dict) else {}
-        title = req.get("title") or req.get("display_name") or ASK_TITLES.get(tool) or f"Use {tool}"
-        reason = ANSI.sub("", str(req.get("decision_reason") or ""))
-        if req.get("blocked_path"):
-            reason = (reason + " " if reason else "") + f"Path: {req['blocked_path']}"
+        # Claude Code 2.1.323 sends display_name (just the tool's name) and description (for Bash, what the command
+        # is for; for Write, the file's name), but no title.
+        title = req.get("title") or ASK_TITLES.get(tool) or req.get("display_name") or f"Use {tool}"
+        detail = ask_detail(tool, inp)
+        why = [str(req.get("description") or "").strip(), ANSI.sub("", str(req.get("decision_reason") or "")).strip()]
+        why = [w for w in why if w and w not in detail]
+        if req.get("blocked_path") and str(req["blocked_path"]) not in detail:
+            why.append(f"Path: {req['blocked_path']}")
         with LOCK:
             self.asks[rid] = {"input": inp, "t0": time.time()}
-        self.push({"t": "ask", "id": rid, "tool": tool, "title": short(title, 120),
-                   "detail": ask_detail(tool, inp), "reason": short(reason, 400)})
+        self.push({"t": "ask", "id": rid, "tool": tool, "title": short(title, 120), "detail": detail,
+                   "reason": short(" · ".join(why), 400)})
 
     def answer(self, rid, allow, why=None, interrupt=False, state="denied"):
         """Your Allow / Deny goes back to Claude Code. False when that request is no longer waiting."""

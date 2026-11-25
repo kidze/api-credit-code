@@ -120,17 +120,17 @@ class CommandLine(unittest.TestCase):
     def test_child_env(self):
         saved = dict(os.environ)
         os.environ.update(ANTHROPIC_AUTH_TOKEN="t", CLAUDE_CODE_USE_BEDROCK="1", CLAUDECODE="1",
-                          CLAUDE_CODE_SESSION_ID="x", CLAUDE_CODE_BRIDGE_URL="u", HOME_SAFE="kept")
+                          CLAUDE_CODE_SESSION_ID="x", CLAUDE_CODE_BRIDGE_URL="u", HOME_SAFE="kept",
+                          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB="1")
         try:
             env = cc.child_env(KEY)
         finally:
             os.environ.clear()
             os.environ.update(saved)
         self.assertEqual(env["ANTHROPIC_API_KEY"], KEY)
-        self.assertEqual(env["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"], "1")
         self.assertEqual(env["HOME_SAFE"], "kept")
         for k in ("ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDECODE", "CLAUDE_CODE_SESSION_ID",
-                  "CLAUDE_CODE_BRIDGE_URL"):
+                  "CLAUDE_CODE_BRIDGE_URL", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"):
             self.assertNotIn(k, env)
 
     def test_find_override(self):
@@ -169,6 +169,15 @@ class Events(unittest.TestCase):
         self.assertEqual((bot["cost"], bot["seconds"], bot["blocked"]), (0.5, 2, 1))
         self.assertIn("Plan", bot["notice"])  # it ran in another mode than the one asked for
         self.assertNotIn("warn", bot)
+
+    def test_manual_is_default(self):
+        bot = self.bot("default")
+        self.feed(bot, {"type": "system", "subtype": "init", "permissionMode": "manual",
+                        "apiKeySource": "ANTHROPIC_API_KEY"})
+        self.assertNotIn("notice", bot)
+        self.feed(bot, {"type": "system", "subtype": "init", "permissionMode": "auto",
+                        "apiKeySource": "ANTHROPIC_API_KEY"})
+        self.assertIn("Auto", bot["notice"])
 
     def test_not_billed_to_the_key(self):
         bot = self.bot()

@@ -1022,7 +1022,10 @@
       case "init":
         if (ev.model) bot.model = ev.model;
         if (ev.billing_ok === false) bot.warn = "This answer was NOT billed to your API key.";
-        if (ev.mode && bot.mode && ev.mode !== bot.mode) bot.notice = `Claude Code ran this in ${MODE_NAMES[ev.mode] || ev.mode} mode.`;
+        {
+          const ran = ev.mode === "manual" ? "default" : ev.mode; // newer Claude Code calls Manual "manual"
+          if (ran && bot.mode && ran !== bot.mode) bot.notice = `Claude Code ran this in ${MODE_NAMES[ran] || ran} mode.`;
+        }
         break;
       case "notice":
         bot.notice = ev.msg;
