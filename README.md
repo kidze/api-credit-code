@@ -71,7 +71,7 @@ Your key is saved on your own computer and only ever sent to Anthropic. To chang
 
 | | |
 |---|---|
-| **Folder** | Where Claude works. You see the folders you already trust in Claude Code, plus your home folder. To add one, run `claude` in it once and say yes. |
+| **Folder** | Where Claude works. You see the folders you already trust in Claude Code, plus your home folder. To add one, run `claude` in it once and say yes ([more](#faq)). |
 | **Mode** | **Auto**: Claude handles permission decisions. **Manual**: Claude asks before making changes, and you Allow or Deny. **Accept edits**: file edits go through, the rest asks. **Plan**: Claude makes a plan first, then you pick a mode to carry it out. |
 | **Effort** | How hard Claude thinks. Higher is smarter, slower and costs more. |
 | **Max $** | The most one answer may cost. Claude Code stops there. |
@@ -111,6 +111,10 @@ Follow-ups resume the same session (`--resume <chat>`). In Manual and Accept edi
 **macOS says the app can't be opened, or Apple can't check it.** Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to API Credit Code. Or use the Terminal one-liner, which needs no extra step.
 
 **"Credit balance too low".** The credits aren't claimed yet, or the key comes from a different Console organization than the one your plan's credits go to.
+
+**Which folders can I pick? My folder isn't in the list.** The Folder menu shows every folder you've opened Claude Code in and said yes to *"Do you trust the files in this folder?"*, plus your home folder. The most recently used come first. It's Claude Code's own list (in `~/.claude.json`), read again each time the page loads. To add a folder, open a terminal in it, run `claude` once, say yes, then reload the page. Folders you said no to, and folders that were deleted or moved, don't show.
+
+*Why only those?* The app runs Claude Code's headless mode, which never asks that question. It applies a folder's own settings, including hooks and MCP servers, straight away. So the app only offers folders you've already approved. A chat stays in the folder it started in; start a new chat to use another.
 
 **Can I put the key in its file myself?** Yes. It's `key.txt`, in the app's folder:
 
