@@ -174,6 +174,18 @@ class CommandLine(unittest.TestCase):
         finally:
             del os.environ["API_CREDIT_CODE_CLAUDE"]
 
+    def test_login_shell_never_takes_the_terminal(self):
+        """The app may be started from a Terminal window (the one-line installer does): the login shell it asks for
+        PATH must run without that terminal, or it takes the window over and the window's shell ends."""
+        from unittest import mock
+        calls = []
+        fake = lambda args, **kw: calls.append(kw) or mock.Mock(stdout="")
+        with mock.patch.object(cc, "WINDOWS", False), mock.patch.object(cc.subprocess, "run", fake):
+            cc.adopt_login_path()
+            cc._login_shell_claude()
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(kw.get("start_new_session") for kw in calls))
+
 
 class Events(unittest.TestCase):
     def bot(self, mode="auto"):

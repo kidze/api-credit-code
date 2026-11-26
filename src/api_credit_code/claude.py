@@ -67,9 +67,12 @@ def adopt_login_path():
     if WINDOWS:
         return
     shell = os.environ.get("SHELL") or "/bin/zsh"
-    try:  # a marker, because a shell's startup files may print things of their own
+    # A marker, because a shell's startup files may print things of their own. In its own session, with no terminal:
+    # an interactive shell started from a Terminal window would take that window over, and the window's own shell
+    # would end ("error on TTY read") once it quits.
+    try:
         out = subprocess.run([shell, "-ilc", 'printf "\\n__ACC_PATH__%s\\n" "$PATH"'], capture_output=True,
-                             text=True, timeout=15, stdin=subprocess.DEVNULL).stdout
+                             text=True, timeout=15, stdin=subprocess.DEVNULL, start_new_session=True).stdout
     except (OSError, subprocess.TimeoutExpired):
         return
     if "__ACC_PATH__" not in out:
@@ -84,7 +87,7 @@ def _login_shell_claude():
     shell = os.environ.get("SHELL") or ("/bin/zsh" if sys.platform == "darwin" else "/bin/sh")
     try:
         out = subprocess.run([shell, "-lc", "command -v claude"], capture_output=True, text=True, timeout=10,
-                             stdin=subprocess.DEVNULL).stdout.strip().splitlines()
+                             stdin=subprocess.DEVNULL, start_new_session=True).stdout.strip().splitlines()
     except (OSError, subprocess.TimeoutExpired):
         return None
     return out[-1] if out and os.path.isfile(out[-1]) else None
