@@ -3,11 +3,11 @@
 #   irm https://raw.githubusercontent.com/kidze/api-credit-code/main/install.ps1 | iex
 #
 # What it does: finds Python 3.10 or newer (or installs Python 3.13 from python.org with winget), installs
-# API Credit Code for your user with pip, adds Start menu and Desktop icons, and opens it in your browser.
-# Nothing runs as administrator. To update, run the same line again.
+# API Credit Code for your user with pip, adds Start menu and Desktop icons, and says how to open it. It doesn't
+# start the app. Nothing runs as administrator. To update, run the same line again.
 #
 # For testing: ACC_SOURCE installs from another place (a folder or a .zip), ACC_NO_LAUNCH=1 skips the icons and
-# runs a self-test instead of opening the app.
+# runs a self-test instead.
 
 function Install-ApiCreditCode {
     # Windows PowerShell 5.1 turns anything a program writes to stderr into an error, and with 'Stop' that would end
@@ -76,17 +76,13 @@ function Install-ApiCreditCode {
         try { $running = (Invoke-RestMethod -Uri 'http://127.0.0.1:8790/api/hello' -TimeoutSec 2).app -eq 'api-credit-code' } catch { }
         if ($running) {
             Write-Host 'An older copy is still running: click Quit at the bottom of its chat list, then open it again.' -ForegroundColor Yellow
-        } else {
-            $pythonw = Join-Path (Split-Path $python) 'pythonw.exe'
-            if (-not (Test-Path -LiteralPath $pythonw)) { $pythonw = $python }
-            Start-Process -FilePath $pythonw -ArgumentList '-m', 'api_credit_code', '--app'
         }
     }
 
     Write-Host ''
     Write-Host "$version is installed." -ForegroundColor Green
     if (-not $env:ACC_NO_LAUNCH) {
-        Write-Host 'It opens in your browser. Next time, start it from the Start menu or the Desktop icon.'
+        Write-Host 'To open it: API Credit Code in the Start menu, or its Desktop icon. It opens in your browser.'
     }
 }
 

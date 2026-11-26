@@ -5,10 +5,11 @@
 #
 # What it does: installs uv (Astral's Python installer, which also fetches Python if you need it) unless you have
 # it, installs API Credit Code for your user with `uv tool install`, adds an app icon (~/Applications on a Mac,
-# the app menu on Linux), and opens it in your browser. No sudo. To update, run the same line again.
+# the app menu on Linux), and says how to open it. It doesn't start the app. No sudo. To update, run the same
+# line again.
 #
 # For testing: ACC_SOURCE installs from another place (a folder or a .zip), ACC_NO_LAUNCH=1 skips the icon and
-# runs a self-test instead of opening the app.
+# runs a self-test instead.
 set -eu
 
 main() {
@@ -44,8 +45,6 @@ main() {
         "$app" --make-launcher >/dev/null || echo "No app icon was made (see above). You can start it with: $app"
         if curl -fsS --max-time 2 http://127.0.0.1:8790/api/hello 2>/dev/null | grep -q api-credit-code; then
             echo "An older copy is still running: click Quit at the bottom of its chat list, then open it again."
-        else
-            nohup "$app" --app >/dev/null 2>&1 </dev/null &
         fi
     fi
 
@@ -56,9 +55,9 @@ main() {
     fi
     if [ -z "${ACC_NO_LAUNCH:-}" ]; then
         if [ "$(uname)" = "Darwin" ]; then
-            echo "It opens in your browser. Next time, open API Credit Code from Applications (in your home folder)."
+            echo "To open it: Applications (in your home folder) > API Credit Code. It opens in your browser."
         else
-            echo "It opens in your browser. Next time, open API Credit Code from your app menu, or run: api-credit-code"
+            echo "To open it: API Credit Code in your app menu, or run: api-credit-code. It opens in your browser."
         fi
     fi
 }
