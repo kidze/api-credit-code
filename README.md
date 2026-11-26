@@ -8,7 +8,7 @@
 
 No? Neither do most subscribers, so every month they quietly expire, like a gym membership. Spend yours with your own Claude Code, from a browser tab.
 
-[Why](#why) · [Install](#install) · [Get started](#get-started) · [Using it](#using-it) · [How it works](#how-it-works) · [Privacy](#privacy-and-safety) · [FAQ](#faq) · [Uninstall](#uninstall) · [For AI assistants](#for-ai-assistants) · [Development](#development)
+[Why](#why) · [Install](#install) · [Get started](#get-started) · [Using it](#using-it) · [How it works](#how-it-works) · [Privacy](#privacy-and-safety) · [FAQ](#faq) · [Uninstall](#uninstall)
 
 </div>
 
