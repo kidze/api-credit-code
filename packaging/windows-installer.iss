@@ -52,3 +52,29 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppName}.exe"; Tasks: deskt
 
 [Run]
 Filename: "{app}\{#AppName}.exe"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// Uninstall: close the app if it's open (it would keep its tab answering), then offer to delete the user's chats and
+// API key, which live in their own folder and are kept by default, so a reinstall finds them. /DELETEDATA deletes
+// them without asking (for scripts and tests).
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Code: Integer;
+  Dir: String;
+  DeleteData: Boolean;
+begin
+  if CurUninstallStep = usUninstall then
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM "{#AppName}.exe"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  if CurUninstallStep = usPostUninstall then begin
+    Dir := ExpandConstant('{localappdata}\api-credit-code');
+    if not DirExists(Dir) then
+      Exit;
+    DeleteData := Pos('/DELETEDATA', Uppercase(GetCmdTail)) > 0;
+    if not DeleteData and not UninstallSilent then
+      DeleteData := MsgBox('Also delete your chats and API key?' + #13#10#13#10 + 'They are in ' + Dir +
+        '. Choose No to keep them for a later install.', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+    if DeleteData and not DelTree(Dir, True, True, True) then
+      MsgBox('Some of it could not be deleted. Quit API Credit Code if it is still open, then delete this folder: ' +
+        Dir, mbError, MB_OK);
+  end;
+end;

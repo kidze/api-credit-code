@@ -8,7 +8,7 @@
 
 No? Neither do most subscribers, so every month they quietly expire, like a gym membership. Spend yours with your own Claude Code, from a browser tab.
 
-[Install](#install) · [Get started](#get-started) · [How it works](#how-it-works) · [Privacy](#privacy-and-safety) · [FAQ](#faq)
+[Why](#why) · [Install](#install) · [Get started](#get-started) · [Using it](#using-it) · [How it works](#how-it-works) · [Privacy](#privacy-and-safety) · [FAQ](#faq) · [Uninstall](#uninstall) · [For AI assistants](#for-ai-assistants) · [Development](#development)
 
 </div>
 
@@ -128,13 +128,33 @@ Put one key in it, on one line. The app reads the file again for every message, 
 
 ## Uninstall
 
-First click **Quit** in the app (under the chat list). Then:
+**1. Quit the app.** Click **Quit** under the chat list. Removing the app doesn't stop a copy that's already open: it would keep answering its tab until it quits.
 
-- **Windows, one-liner install:** `py -m api_credit_code --remove-launcher; py -m pip uninstall -y api-credit-code`
-- **macOS or Linux, one-liner install:** `api-credit-code --remove-launcher; uv tool uninstall api-credit-code`
-- **Windows installer:** Settings → Apps → API Credit Code → Uninstall. **Mac app:** drag it to the Trash.
+**2. Remove the app**, the way you installed it:
 
-Then delete the app's folder (see [Privacy](#privacy-and-safety)) to remove your chats and key too.
+| Installed with | Remove it |
+|---|---|
+| Windows installer (.exe) | Settings → Apps → Installed apps → API Credit Code → Uninstall. It closes the app if it's open, and asks whether to delete your chats and API key too. |
+| Windows one-liner | In PowerShell: `py -m api_credit_code --remove-launcher; py -m pip uninstall -y api-credit-code` |
+| Mac app (.dmg) | Drag **API Credit Code** from Applications to the Trash. |
+| macOS one-liner | In Terminal: `api-credit-code --remove-launcher; uv tool uninstall api-credit-code`. The first part removes **API Credit Code** from the Applications folder in your home folder. |
+| Linux one-liner | In a terminal: `api-credit-code --remove-launcher; uv tool uninstall api-credit-code` |
+
+**3. Delete your API key and chats** (optional). Removing the app keeps them, so installing it again picks up where you left off. To delete them (Quit the app first):
+
+- **macOS**, in Terminal: `rm -rf ~/Library/Application\ Support/api-credit-code`
+- **Linux:** `rm -rf ~/.local/share/api-credit-code`
+- **Windows**, in PowerShell: `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\api-credit-code"` (the Windows installer offers to do this for you)
+
+To stop the key working anywhere, also delete it in the Console: [platform.claude.com/settings/keys](https://platform.claude.com/settings/keys).
+
+**What the one-liners installed besides the app.** If you had no Python, the Windows one-liner installed Python 3.13: remove it in Settings → Apps if nothing else uses it. If you had no uv, the macOS/Linux one-liner installed uv ([Astral's Python installer](https://docs.astral.sh/uv)), which says *"Installing uv"* when it runs. If nothing else uses it, remove it (after step 2) with [uv's own steps](https://docs.astral.sh/uv/getting-started/installation/#uninstallation):
+
+```bash
+uv cache clean
+rm -r "$(uv python dir)" "$(uv tool dir)"
+rm ~/.local/bin/uv ~/.local/bin/uvx
+```
 
 ## For AI assistants
 
